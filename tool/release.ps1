@@ -83,6 +83,14 @@ if (-not $SkipWindows) {
   $SetupExe = Get-ChildItem "$Root\installer\Spoticlone-Setup-*.exe" |
     Sort-Object LastWriteTime -Descending | Select-Object -First 1
   Write-Host "installer -> $($SetupExe.FullName)"
+  # Portable zip (versioned, replaces any older ones).
+  $PortableZip = "$Root\dist\Spoticlone-Portable-$Version.zip"
+  New-Item -ItemType Directory -Force -Path "$Root\dist" | Out-Null
+  Remove-Item "$Root\dist\Spoticlone-Portable-*.zip" -Force `
+    -ErrorAction SilentlyContinue
+  Compress-Archive -Path "$Root\build\windows\x64\runner\Release\*" `
+    -DestinationPath $PortableZip
+  Write-Host "portable -> $PortableZip"
 }
 
 # 4. Tag only after green builds (a failed build must not leave
@@ -91,6 +99,9 @@ git tag $Tag
 git push origin $Tag
 $assets = @($Apk)
 if ($SetupExe) { $assets += $SetupExe.FullName }
+if (($PortableZip) -and (Test-Path $PortableZip)) {
+  $assets += $PortableZip
+}
 $Notes | Out-File "$env:TEMP\spoticlone-notes.md" -Encoding utf8
 $ghArgs = @("release", "create", $Tag) + $assets +
   @("--title", "Release $Tag", "--notes-file", "$env:TEMP\spoticlone-notes.md")
