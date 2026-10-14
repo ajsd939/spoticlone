@@ -21,6 +21,7 @@ class DesktopPlayer implements PlayerFacade {
   bool _completed = false;
   StreamSubscription? _playingSub;
   StreamSubscription? _completedSub;
+  StreamSubscription? _durationSub;
 
   DesktopPlayer({required YtBridge bridge})
       : _stream = StreamService(bridge: bridge) {
@@ -44,6 +45,13 @@ class DesktopPlayer implements PlayerFacade {
             ? AudioProcessingState.completed
             : AudioProcessingState.ready,
       ));
+    });
+    // Ground-truth duration for the taskbar/notification total.
+    _durationSub = _player.stream.duration.listen((d) {
+      final cur = _mediaItem.value;
+      if (d.inMilliseconds > 0 && cur != null && cur.duration != d) {
+        _mediaItem.add(cur.copyWith(duration: d));
+      }
     });
   }
 
@@ -119,6 +127,7 @@ class DesktopPlayer implements PlayerFacade {
   Future<void> dispose() async {
     await _playingSub?.cancel();
     await _completedSub?.cancel();
+    await _durationSub?.cancel();
     await _player.dispose();
     await _mediaItem.close();
     await _state.close();

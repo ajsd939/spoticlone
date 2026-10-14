@@ -14,6 +14,17 @@ class AppAudioHandler extends BaseAudioHandler with QueueHandler, SeekHandler {
 
   AppAudioHandler() {
     _player.playbackEventStream.map(_toState).pipe(playbackState);
+    // Ground-truth duration: metadata is often 0/wrong, which froze
+    // the UI/notification total at 0:00 while audio played fine.
+    _player.durationStream.listen((d) {
+      final cur = mediaItem.value;
+      if (d != null &&
+          d.inMilliseconds > 0 &&
+          cur != null &&
+          cur.duration != d) {
+        mediaItem.add(cur.copyWith(duration: d));
+      }
+    });
   }
 
   PlaybackState _toState(PlaybackEvent e) => PlaybackState(

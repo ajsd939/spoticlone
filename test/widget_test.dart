@@ -149,8 +149,7 @@ void main() {
     expect(t.durationSec, 215);
   });
 
-  test('PlaylistService keeps good entries past a corrupt one', () async {
-    SharedPreferences.setMockInitialValues({
+  test('PlaylistService keeps good entries past a corrupt one', () async {    SharedPreferences.setMockInitialValues({
       'spoticlone.playlists.v1': '[{"id":"liked","name":"Liked Songs",'
           '"createdAt":"2026-01-01T00:00:00.000","tracks":[]},'
           '{"id":42,"tracks":"not-a-list"}]',
@@ -159,5 +158,14 @@ void main() {
     await svc.load();
     expect(svc.byId('liked')!.name, 'Liked Songs');
     expect(svc.playlists.length, 1);
+  });
+
+  test('Lyrics query helpers normalize credits', () {
+    expect(LyricsService.firstArtist('Kendrick Lamar, SZA'),
+        'Kendrick Lamar');
+    expect(LyricsService.firstArtist('Drake'), 'Drake');
+    expect(LyricsService.stripTitle('HUMBLE. (feat. Someone)'), 'HUMBLE.');
+    expect(LyricsService.stripTitle('Song - Remaster'), 'Song - Remaster');
+    expect(LyricsService.stripTitle('Plain Title'), 'Plain Title');
   });
 }

@@ -290,13 +290,20 @@ class _FullPlayerState extends State<FullPlayer>
         child: Column(
           mainAxisSize: MainAxisSize.min,
           children: [
-            StreamBuilder<Duration>(
-              stream: widget.handler.positionStream,
-              builder: (c, pos) {
-                final p = pos.data ?? Duration.zero;
-                final total =
-                    Duration(seconds: widget.track.durationSec);
-                return Column(
+            StreamBuilder<MediaItem?>(
+              stream: widget.handler.mediaItem,
+              builder: (c, mm) {
+                // Real audio duration wins: metadata is often 0, which
+                // froze the total at 0:00 while the song played.
+                final md = mm.data?.duration;
+                final total = (md != null && md.inMilliseconds > 0)
+                    ? md
+                    : Duration(seconds: widget.track.durationSec);
+                return StreamBuilder<Duration>(
+                  stream: widget.handler.positionStream,
+                  builder: (c, pos) {
+                    final p = pos.data ?? Duration.zero;
+                    return Column(
                   children: [
                     SliderTheme(
                       data: SliderTheme.of(context).copyWith(
@@ -335,7 +342,9 @@ class _FullPlayerState extends State<FullPlayer>
                   ],
                 );
               },
-            ),
+            );
+          },
+        ),
             StreamBuilder<PlaybackState>(
               stream: widget.handler.playbackState,
               builder: (c, s) {

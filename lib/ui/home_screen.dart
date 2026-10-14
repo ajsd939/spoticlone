@@ -193,17 +193,23 @@ class _HomeScreenState extends State<HomeScreen> {
     }
   }
 
-  Future<void> _play(Track t) async {    final gen = ++_playGen;
+  Future<void> _play(Track t) async {
+    final gen = ++_playGen;
+    final prev = _current;
+    // Optimistic UI: the tapped track shows instantly. Waiting for the
+    // 15s resolve left the old song on screen in silence, which read as
+    // "stuck on the last song". Rolled back below on failure.
     setState(() {
       _resolving = true;
       _resolvingId = t.videoId;
+      _current = t;
     });
     try {
       await widget.handler.playTrack(t);
       if (gen != _playGen || !mounted) return; // a newer tap won
-      setState(() => _current = t);
     } catch (e) {
       if (gen != _playGen || !mounted) return;
+      setState(() => _current = prev); // roll back to what was playing
       ScaffoldMessenger.of(context).showSnackBar(
         SnackBar(content: Text('Playback failed: $e')),
       );

@@ -6,11 +6,59 @@ import '../models/track.dart';
 // exact-match synced lyrics. See https://lrclib.net/docs
 class LyricsService {
   Future<List<LyricLine>> fetchSynced(Track t) async {
-    final uri = Uri.https('lrclib.net', '/api/get', {
-      'artist_name': t.artist,
-      'track_name': t.title,
-      'duration': t.durationSec.toString(),
-    });
+    // Fallback chain: exact credit first, then progressively looser
+    // queries (LRCLIB misses on "A, B" multi-artists, "(feat. X)"
+    // titles and strict durations).
+    final seen = <String>{};
+    for (final q in _candidates(t)) {
+      final key = '${q.$1}|${q.$2}|${q.$3}';
+      if (!seen.add(key)) continue;
+      final lines =
+          await _fetchOnce(q.$1, q.$2, q.$3 ? t.durationSec : 0);
+      if (lines.isNotEmpty) return lines;
+    }
+    return [];
+  }
+
+  /// (artist, title, withDuration) attempts, most exact first.
+  List<(String, String, bool)> _candidates(Track t) => [
+        (t.artist, t.title, t.durationSec > 0),
+        (firstArtist(t.artist), t.title, t.durationSec > 0),
+        (t.artist, stripTitle(t.title), t.durationSec > 0),
+        (firstArtist(t.artist), stripTitle(t.title), t.durationSec > 0),
+        (t.artist, t.title, false),
+      ];
+
+  /// "Kendrick Lamar, SZA" -> "Kendrick Lamar".
+  static String firstArtist(String artist) {
+    final m = RegExp(r'^[^,&/]+').firstMatch(artist.trim());
+    final first = (m?.group(0) ?? artist).trim();
+    final feat = RegExp(r'\s+[xX]\s+|\s+feat\.?.*$', caseSensitive: false);
+    return first.split(feat).first.trim();
+  }
+
+  /// "HUMBLE. (feat. ...)" / "Song - Remaster" -> base title.
+  static String stripTitle(String title) {
+    var s = title
+        .replaceAll(
+            RegExp(
+                r'\s*[\(\[].*\b(feat|ft|explicit|remaster|radio edit|sped up|slowed|live|cover)\b.*$',
+                caseSensitive: false),
+            '')
+        .trim();
+    if (s.isEmpty) s = title.trim();
+    return s;
+  }
+
+  Future<List<LyricLine>> _fetchOnce(
+      String artist, String title, int durationSec) async {
+    final params = <String, String>{
+      'artist_name': artist,
+      'track_name': title,
+    };
+    // duration=0 actively harms matching: omit it instead.
+    if (durationSec > 0) params['duration'] = durationSec.toString();
+    final uri = Uri.https('lrclib.net', '/api/get', params);
     final r = await http.get(uri);
     if (r.statusCode != 200) return [];
     dynamic body;
