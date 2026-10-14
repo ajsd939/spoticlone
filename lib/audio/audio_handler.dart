@@ -50,12 +50,15 @@ class AppAudioHandler extends BaseAudioHandler with QueueHandler, SeekHandler {
     if (gen != _playGen) return; // superseded while stopping
     final s = await _stream.resolve(t); // yt-dlp direct URL, fresh each play
     if (gen != _playGen) return; // superseded during resolve: don't hijack
+    // Prefer the resolved stream duration (metadata is often 0/wrong);
+    // the notification total would otherwise read 0:00 while playing.
+    final totalSec = s.duration > 0 ? s.duration : t.durationSec;
     mediaItem.add(MediaItem(
       id: t.videoId,
       title: t.title,
       artist: t.artist,
       album: t.album,
-      duration: Duration(seconds: t.durationSec),
+      duration: Duration(seconds: totalSec),
       artUri: Uri.tryParse(t.artworkUrl),
     ));
     await _player.setAudioSource(

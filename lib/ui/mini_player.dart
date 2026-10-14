@@ -49,7 +49,7 @@ class MiniPlayer extends StatelessWidget {
                     child: Row(
                       children: [
                         CachedNetworkImage(
-                          imageUrl: m.artUri.toString(),
+                          imageUrl: m.artUri?.toString() ?? '',
                           width: 52,
                           height: 52,
                           fit: BoxFit.cover,
@@ -82,13 +82,6 @@ class MiniPlayer extends StatelessWidget {
                                       fontSize: 12)),
                             ],
                           ),
-                        ),
-                        IconButton(
-                          icon: const Icon(
-                              Icons.devices_outlined,
-                              size: 20,
-                              color: Colors.white54),
-                          onPressed: () {},
                         ),
                         StreamBuilder<PlaybackState>(
                           stream: handler.playbackState,

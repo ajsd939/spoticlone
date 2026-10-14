@@ -18,6 +18,7 @@ class LyricsView extends StatefulWidget {
 class _LyricsViewState extends State<LyricsView> {
   late Future<List<LyricLine>> _future;
   final _scroll = ScrollController();
+  int _lastActive = -1;
 
   @override
   void initState() {
@@ -30,6 +31,7 @@ class _LyricsViewState extends State<LyricsView> {
     super.didUpdateWidget(old);
     if (old.track.videoId != widget.track.videoId) {
       _future = LyricsService().fetchSynced(widget.track);
+      _lastActive = -1;
     }
   }
 
@@ -62,17 +64,20 @@ class _LyricsViewState extends State<LyricsView> {
             for (var i = 0; i < lines.length; i++) {
               if (lines[i].time <= now) active = i;
             }
-            // Auto-scroll to active line (post-frame to avoid build loops).
-            WidgetsBinding.instance.addPostFrameCallback((_) {
-              if (_scroll.hasClients) {
+            // Auto-scroll only when the active line actually changes:
+            // animating on every position tick fights user scrolling.
+            if (active != _lastActive) {
+              _lastActive = active;
+              WidgetsBinding.instance.addPostFrameCallback((_) {
+                if (!mounted || !_scroll.hasClients) return;
                 _scroll.animateTo(
                   (active * 44.0).clamp(
                       0.0, _scroll.position.maxScrollExtent),
                   duration: const Duration(milliseconds: 400),
                   curve: Curves.easeOut,
                 );
-              }
-            });
+              });
+            }
             return StreamBuilder<MediaItem?>(
               stream: widget.handler.mediaItem,
               builder: (c, m) => ListView.builder(

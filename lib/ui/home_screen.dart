@@ -47,6 +47,7 @@ class _HomeScreenState extends State<HomeScreen> {
   // with the previously tapped song.
   String? _resolvingId;
   int _playGen = 0;
+  int _searchGen = 0;
 
   static const _shortcuts = [
     ('Top Hits', 'top hits 2026', Color(0xFFE13300), Icons.local_fire_department),
@@ -62,6 +63,7 @@ class _HomeScreenState extends State<HomeScreen> {
     super.initState();
     _stream = StreamService(bridge: widget.bridge);
     WidgetsBinding.instance.addPostFrameCallback((_) {
+      if (!mounted) return;
       NotificationPermissionService.ensureRequested(context);
     });
     _checkUpdate();
@@ -145,20 +147,28 @@ class _HomeScreenState extends State<HomeScreen> {
       Navigator.pop(context);
       ScaffoldMessenger.of(context).showSnackBar(
           SnackBar(content: Text('Update failed: $e')));
+    } finally {
+      progress.dispose();
     }
   }
 
   Future<void> _doSearch(String q) async {
     if (q.trim().isEmpty) return;
+    // Generation guard: fast typing fires overlapping searches and the
+    // slowest (oldest query) must not overwrite the newest results.
+    final gen = ++_searchGen;
     setState(() => _loading = true);
     try {
       try {
         final r = await _stream.pythonSearch(q);
+        if (gen != _searchGen) return; // superseded by newer keystrokes
         _results = r.songs;
         _artists = r.artists;
         _albums = r.albums;
       } catch (_) {
+        if (gen != _searchGen) return;
         _results = await _search.search(q);
+        if (gen != _searchGen) return;
         _artists = [];
         _albums = [];
       }
@@ -177,7 +187,9 @@ class _HomeScreenState extends State<HomeScreen> {
         );
       }
     } finally {
-      if (mounted) setState(() => _loading = false);
+      if (gen == _searchGen && mounted) {
+        setState(() => _loading = false);
+      }
     }
   }
 

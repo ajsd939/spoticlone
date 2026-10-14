@@ -18,24 +18,33 @@ class DesktopPlayer implements PlayerFacade {
   final _state =
       BehaviorSubject<PlaybackState>.seeded(_idleState(false));
   int _gen = 0;
-  StreamSubscription? _sub;
+  bool _completed = false;
+  StreamSubscription? _playingSub;
+  StreamSubscription? _completedSub;
 
   DesktopPlayer({required YtBridge bridge})
       : _stream = StreamService(bridge: bridge) {
     // Mirror playback state into audio_service-shaped updates.
-    _sub = Rx.combineLatest2<bool, bool, void>(
-      _player.stream.playing,
-      _player.stream.completed,
-      (playing, completed) {
-        final cur = _state.value;
-        _state.add(cur.copyWith(
-          playing: playing && !completed,
-          processingState: completed
-              ? AudioProcessingState.completed
-              : AudioProcessingState.ready,
-        ));
-      },
-    ).listen((_) {});
+    // Separate listeners (not combineLatest): `completed` may never
+    // emit before first play, which would stall state updates.
+    _playingSub = _player.stream.playing.listen((playing) {
+      final completed = _completed;
+      _state.add(_state.value.copyWith(
+        playing: playing && !completed,
+        processingState: completed
+            ? AudioProcessingState.completed
+            : AudioProcessingState.ready,
+      ));
+    });
+    _completedSub = _player.stream.completed.listen((completed) {
+      _completed = completed;
+      _state.add(_state.value.copyWith(
+        playing: _player.state.playing && !completed,
+        processingState: completed
+            ? AudioProcessingState.completed
+            : AudioProcessingState.ready,
+      ));
+    });
   }
 
   static PlaybackState _idleState(bool playing) => PlaybackState(
@@ -68,22 +77,32 @@ class DesktopPlayer implements PlayerFacade {
   Future<void> playTrack(Track t) async {
     final gen = ++_gen;
     _setResolving();
-    await _player.stop();
-    if (gen != _gen) return;
-    final s = await _stream.resolve(t);
-    if (gen != _gen) return;
-    final item = MediaItem(
-      id: t.videoId,
-      title: t.title,
-      artist: t.artist,
-      album: t.album,
-      duration: Duration(seconds: t.durationSec),
-      artUri: Uri.tryParse(t.artworkUrl),
-    );
-    _mediaItem.add(item);
-    await _player.open(mk.Media(s.url));
-    if (gen != _gen) return;
-    await _player.play();
+    try {
+      await _player.stop();
+      if (gen != _gen) return;
+      final s = await _stream.resolve(t);
+      if (gen != _gen) return;
+      // Item published only once open() succeeds: a failed resolve
+      // must not strand the new title in taskbar/SMTC with silence.
+      await _player.open(mk.Media(s.url));
+      if (gen != _gen) return;
+      final totalSec = s.duration > 0 ? s.duration : t.durationSec;
+      _mediaItem.add(MediaItem(
+        id: t.videoId,
+        title: t.title,
+        artist: t.artist,
+        album: t.album,
+        duration: Duration(seconds: totalSec),
+        artUri: Uri.tryParse(t.artworkUrl),
+      ));
+      await _player.play();
+    } catch (_) {
+      // Drop the stuck buffering state so the spinner can't hang.
+      if (gen == _gen) {
+        _state.add(_idleState(false));
+      }
+      rethrow;
+    }
   }
 
   @override
@@ -98,7 +117,8 @@ class DesktopPlayer implements PlayerFacade {
   Future<void> skipToNext() => _player.seek(Duration.zero);
 
   Future<void> dispose() async {
-    await _sub?.cancel();
+    await _playingSub?.cancel();
+    await _completedSub?.cancel();
     await _player.dispose();
     await _mediaItem.close();
     await _state.close();

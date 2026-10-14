@@ -13,19 +13,30 @@ import java.util.concurrent.TimeUnit
 class App : Application() {
     companion object {
         private val ready = CountDownLatch(1)
+        private val startLock = Any()
+
+        // Single guarded entry: both onCreate's thread and bridge
+        // fallbacks funnel here, so Python.start() can never run twice
+        // concurrently (double-start = native crash on cold start).
+        private fun startOnce(context: Context): Boolean {
+            synchronized(startLock) {
+                if (!Python.isStarted()) {
+                    Python.start(
+                        AndroidPlatform(context.applicationContext))
+                    return true
+                }
+                return false
+            }
+        }
 
         // Blocks the CALLING (background) thread until Python is ready.
         // Never call from the UI thread.
         fun ensurePython(context: Context) {
-            if (!Python.isStarted()) {
-                // Fallback in case onCreate's thread hasn't started it.
-                synchronized(this) {
-                    if (!Python.isStarted()) {
-                        Python.start(
-                            AndroidPlatform(context.applicationContext))
-                        ready.countDown()
-                    }
-                }
+            try {
+                startOnce(context)
+            } finally {
+                // Count down once overall; extra calls are harmless.
+                ready.countDown()
             }
             if (!ready.await(90, TimeUnit.SECONDS)) {
                 throw IllegalStateException("Timed out starting Python")
@@ -39,9 +50,7 @@ class App : Application() {
         super.onCreate()
         Thread({
             try {
-                if (!Python.isStarted()) {
-                    Python.start(AndroidPlatform(this))
-                }
+                startOnce(this)
             } catch (e: Exception) {
                 android.util.Log.e("Spoticlone", "Python.start failed", e)
             } finally {

@@ -15,7 +15,14 @@ class SearchService {
     final uri = Uri.parse('$base/search?q=${Uri.encodeComponent(q)}&filter=music_songs');
     final r = await http.get(uri);
     if (r.statusCode != 200) return [];
-    final items = (jsonDecode(r.body)['items'] ?? []) as List;
+    dynamic body;
+    try {
+      body = jsonDecode(r.body);
+    } catch (_) {
+      return [];
+    }
+    if (body is! Map) return [];
+    final items = (body['items'] ?? []) as List? ?? [];
     return items
         .whereType<Map<String, dynamic>>()
         .map(Track.fromPiped)

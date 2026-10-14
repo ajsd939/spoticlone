@@ -13,7 +13,14 @@ class LyricsService {
     });
     final r = await http.get(uri);
     if (r.statusCode != 200) return [];
-    final synced = (jsonDecode(r.body)['syncedLyrics'] ?? '') as String;
+    dynamic body;
+    try {
+      body = jsonDecode(r.body);
+    } catch (_) {
+      return [];
+    }
+    if (body is! Map) return [];
+    final synced = (body['syncedLyrics'] ?? '').toString();
     if (synced.isEmpty) return [];
     return parseLrc(synced);
   }

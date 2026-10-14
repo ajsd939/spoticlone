@@ -58,8 +58,10 @@ chaquopy {
         // 3.11: matches build-machine Python, last version with 32-bit ABIs.
         version = "3.11"
         pip {
-            install("yt-dlp")
-            install("ytmusicapi")
+            // Pinned: unpinned backends break the bridge on any upstream
+            // breaking change (verified pair, bump deliberately).
+            install("yt-dlp==2026.8.19")
+            install("ytmusicapi==1.12.3")
         }
     }
 }

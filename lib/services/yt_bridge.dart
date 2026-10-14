@@ -28,13 +28,15 @@ class DesktopYtBridge implements YtBridge {
 
   @override
   Future<String> invoke(String method, Map<String, String> args) async {
+    // Full paths, no shell: user queries pass through untouched
+    // (spaces/quotes would otherwise be re-split by cmd).
     final r = await Process.run(
         pythonExe, [cliPath, method, jsonEncode(args)],
-        runInShell: true);
+        runInShell: false);
     if (r.exitCode != 0) {
-      throw Exception('bridge failed: ${(r.stderr as String).trim()}');
+      throw Exception('bridge failed: ${r.stderr.toString().trim()}');
     }
-    return (r.stdout as String).trim();
+    return r.stdout.toString().trim();
   }
 
   /// Locate cli.py (release bundle next to the exe, or dev tree)
@@ -57,13 +59,28 @@ class DesktopYtBridge implements YtBridge {
           'bridge cli.py not found next to the exe or in desktop/python/');
     }
     final exe = await _findPython();
-    // Smoke-test the backend once so failures surface at startup.
+    // Smoke-test the backend. Exit code alone is not enough: logic
+    // errors come back as {"error": ...} JSON with exit 0, so require
+    // a well-formed search payload before declaring healthy.
     final probe = await Process.run(
         exe, [cli, 'search', jsonEncode({'query': '__probe__'})],
-        runInShell: true);
+        runInShell: false);
     if (probe.exitCode != 0) {
       throw Exception(
-          'bridge probe failed: ${(probe.stderr as String).trim()}');
+          'bridge probe failed: ${probe.stderr.toString().trim()}');
+    }
+    try {
+      final decoded = jsonDecode(probe.stdout.toString());
+      if (decoded is Map && decoded['error'] != null) {
+        throw Exception('bridge probe: ${decoded['error']}');
+      }
+      if (decoded is! Map<String, dynamic> ||
+          !decoded.containsKey('songs')) {
+        throw Exception('bridge probe: unexpected payload');
+      }
+    } catch (e) {
+      if (e is Exception && e.toString().contains('bridge probe')) rethrow;
+      throw Exception('bridge probe: unreadable response');
     }
     return DesktopYtBridge(pythonExe: exe, cliPath: cli);
   }

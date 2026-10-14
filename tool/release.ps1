@@ -34,22 +34,33 @@ $Gh = Resolve-Tool "gh" $null
 & $Gh auth status 2>&1 | Out-Null
 if ($LASTEXITCODE -ne 0) { throw "gh is not authenticated (run: gh auth login)" }
 
-# 1. Stamp pubspec version (keep existing +N build number when present).
+# 1. Stamp pubspec version (monotonic build number for versionCode).
 $pub = Get-Content "$Root\pubspec.yaml" -Raw
 $build = "1"
-if ($pub -match '(?m)^version:\s*[\d.]+\+(\d+)') { $build = $Matches[1] }
+if ($pub -match '(?m)^version:\s*[\d.]+\+(\d+)') { $build = "$([int]$Matches[1] + 1)" }
 $pub = $pub -replace '(?m)^version:\s*.*$', "version: ${Version}+${build}"
 Set-Content "$Root\pubspec.yaml" -Value $pub -NoNewline:$false
+# Stamp installer version up front (it used to be stamped AFTER makensis,
+# so every release shipped with the previous version baked in).
+(Get-Content "$Root\installer\spoticlone.nsi") `
+  -replace '!define APP_VERSION "[^"]*"', "!define APP_VERSION `"$Version`"" |
+  Set-Content "$Root\installer\spoticlone.nsi"
 Write-Host "pubspec version -> ${Version}+${build}"
 
-# 2. Notes default: commits since last tag.
+# 2. Notes default: commits since last tag (before the release commit).
 if ([string]::IsNullOrWhiteSpace($Notes)) {
   $last = (git describe --tags --abbrev=0 2>$null)
   $range = if ($last) { "$last..HEAD" } else { "HEAD" }
   $Notes = (git log $range --pretty=format:"- %s" 2>$null) -join "`n"
   if ([string]::IsNullOrWhiteSpace($Notes)) { $Notes = "Release $Tag" }
-  git tag $Tag
-  Write-Host "tagged $Tag (notes from git log)"
+  Write-Host "notes from git log"
+}
+
+# 2b. Commit the stamps so the tag points at exactly what was built.
+if ((git status --porcelain pubspec.yaml installer/spoticlone.nsi) -ne $null) {
+  git add pubspec.yaml installer/spoticlone.nsi
+  git commit -q -m "Release $Tag"
+  Write-Host "committed version stamps"
 }
 
 # 3. Builds.
@@ -71,14 +82,13 @@ if (-not $SkipWindows) {
   if ($LASTEXITCODE -ne 0) { throw "NSIS compile failed" }
   $SetupExe = Get-ChildItem "$Root\installer\Spoticlone-Setup-*.exe" |
     Sort-Object LastWriteTime -Descending | Select-Object -First 1
-  # Stamp installer version into the .nsi for next time.
-  (Get-Content "$Root\installer\spoticlone.nsi") `
-    -replace '!define APP_VERSION "[^"]*"', "!define APP_VERSION `"$Version`"" |
-    Set-Content "$Root\installer\spoticlone.nsi"
   Write-Host "installer -> $($SetupExe.FullName)"
 }
 
-# 4. Publish.
+# 4. Tag only after green builds (a failed build must not leave
+# a stray tag), then publish.
+git tag $Tag
+git push origin $Tag
 $assets = @($Apk)
 if ($SetupExe) { $assets += $SetupExe.FullName }
 $Notes | Out-File "$env:TEMP\spoticlone-notes.md" -Encoding utf8

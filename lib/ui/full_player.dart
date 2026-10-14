@@ -54,7 +54,13 @@ class _FullPlayerState extends State<FullPlayer>
 
   Future<void> _extractColor() async {
     final id = widget.track.videoId;
-    if (widget.track.artworkUrl.isEmpty) return;
+    if (widget.track.artworkUrl.isEmpty) {
+      // No art: drop the previous track's gradient instead of keeping it.
+      if (_dominant != const Color(0xFF2A2A2A) && mounted) {
+        setState(() => _dominant = const Color(0xFF2A2A2A));
+      }
+      return;
+    }
     try {
       final p = await PaletteGenerator.fromImageProvider(
         CachedNetworkImageProvider(widget.track.artworkUrl),

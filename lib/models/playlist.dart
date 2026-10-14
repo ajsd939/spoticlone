@@ -61,12 +61,15 @@ class PlaylistService extends ChangeNotifier {
         final decoded = jsonDecode(raw);
         if (decoded is List) {
           for (final e in decoded.whereType<Map>()) {
-            final p = Playlist.fromJson(e);
-            if (p.id.isNotEmpty) _playlists.add(p);
+            // One corrupt entry must not wipe the whole library.
+            try {
+              final p = Playlist.fromJson(e);
+              if (p.id.isNotEmpty) _playlists.add(p);
+            } catch (_) {}
           }
         }
       } catch (_) {
-        // Corrupt cache: start fresh rather than crash.
+        // Totally unreadable cache: start fresh rather than crash.
         _playlists.clear();
       }
     }
@@ -91,7 +94,7 @@ class PlaylistService extends ChangeNotifier {
 
   Future<Playlist> createPlaylist(String name) async {
     final p = Playlist(
-      id: 'pl_${DateTime.now().millisecondsSinceEpoch}',
+      id: 'pl_${DateTime.now().microsecondsSinceEpoch}',
       name: name.trim().isEmpty ? 'My Playlist' : name.trim(),
     );
     _playlists.add(p);

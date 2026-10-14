@@ -23,24 +23,35 @@ class OtaUpdateService {
     if (dir == null) throw Exception('no storage directory');
     final file = File('${dir.path}${Platform.pathSeparator}$filename');
     final req = http.Request('GET', Uri.parse(asset.downloadUrl));
-    final res = await http.Client().send(req);
-    if (res.statusCode != 200) {
-      throw Exception('download failed: HTTP ${res.statusCode}');
-    }
-    final total = res.contentLength ?? asset.size;
-    var received = 0;
-    final sink = file.openWrite();
+    final client = http.Client();
     try {
-      await for (final chunk in res.stream) {
-        sink.add(chunk);
-        received += chunk.length;
-        if (total > 0) onProgress?.call(received / total);
+      final res = await client.send(req);
+      if (res.statusCode != 200) {
+        throw Exception('download failed: HTTP ${res.statusCode}');
       }
+      final total = res.contentLength ?? asset.size;
+      var received = 0;
+      final sink = file.openWrite();
+      try {
+        await for (final chunk in res.stream) {
+          sink.add(chunk);
+          received += chunk.length;
+          if (total > 0) onProgress?.call(received / total);
+        }
+      } finally {
+        await sink.close();
+      }
+      onProgress?.call(1.0);
+      return file;
+    } catch (_) {
+      // Never leave a corrupt partial file behind for install() to open.
+      try {
+        if (await file.exists()) await file.delete();
+      } catch (_) {}
+      rethrow;
     } finally {
-      await sink.close();
+      client.close();
     }
-    onProgress?.call(1.0);
-    return file;
   }
 
   /// Opens the downloaded artifact with the OS default handler:

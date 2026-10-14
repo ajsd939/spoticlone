@@ -202,12 +202,12 @@ def get_artist(artist_id):
         return json.dumps({"error": str(e)})
     try:
         channel = _coerce_str(a.get("channelId")) or str(artist_id or "")
-        songs = ((a.get("songs") or {}).get("results") or [])
+        songs = _section_results(a.get("songs"))
         albums_info = a.get("albums") or {}
         singles_info = a.get("singles") or {}
-        albums = [r for r in (albums_info.get("results") or [])
+        albums = [r for r in _section_results(albums_info)
                   if isinstance(r, dict)]
-        singles = [r for r in (singles_info.get("results") or [])
+        singles = [r for r in _section_results(singles_info)
                    if isinstance(r, dict)]
         # Full discography via the section browse endpoint (the
         # library's get_artist_albums can't parse current responses).
@@ -272,6 +272,15 @@ def get_album(album_id):
         return json.dumps({"error": str(e)})
 
 
+def _section_results(section):
+    """Track/album preview list tolerating dict- or list-shaped payloads."""
+    if isinstance(section, dict):
+        return section.get("results") or []
+    if isinstance(section, list):
+        return section
+    return []
+
+
 def _grid_album(item):
     """Normalize one musicTwoRowItemRenderer (album/single grid cell)."""
     r = (item or {}).get("musicTwoRowItemRenderer") or {}
@@ -319,7 +328,11 @@ def _fetch_section_items(section_browse_id, params):
         raise ValueError("no gridRenderer in section response")
     out = []
     for it in grid.get("items") or []:
-        alb = _grid_album(it)
+        # One odd cell must not abort the whole discography fetch.
+        try:
+            alb = _grid_album(it)
+        except Exception:
+            continue
         if alb["albumId"]:
             out.append(alb)
     # Follow further pages (e.g. huge discographies). The helper

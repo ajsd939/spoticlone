@@ -23,6 +23,9 @@ Future<void> main() async {
     () async => windowManager.show(),
   );
 
+  // Boot splash first: pip-installing the backend on first run can
+  // take minutes with otherwise a blank window.
+  runApp(const _BootApp());
   late final DesktopYtBridge bridge;
   try {
     await setupLocator();
@@ -33,6 +36,36 @@ Future<void> main() async {
   }
   final player = DesktopPlayer(bridge: bridge);
   runApp(SpoticloneDesktopApp(player: player, bridge: bridge));
+}
+
+class _BootApp extends StatelessWidget {
+  const _BootApp();
+
+  @override
+  Widget build(BuildContext context) {
+    return MaterialApp(
+      home: Scaffold(
+        backgroundColor: AppColors.background,
+        body: Center(
+          child: Column(
+            mainAxisSize: MainAxisSize.min,
+            children: const [
+              Text('Spoticlone',
+                  style: TextStyle(
+                      color: Colors.white,
+                      fontSize: 24,
+                      fontWeight: FontWeight.w700)),
+              SizedBox(height: 16),
+              CircularProgressIndicator(color: AppColors.green),
+              SizedBox(height: 12),
+              Text('Starting music backend…',
+                  style: TextStyle(color: AppColors.grey)),
+            ],
+          ),
+        ),
+      ),
+    );
+  }
 }
 
 class SpoticloneDesktopApp extends StatelessWidget {

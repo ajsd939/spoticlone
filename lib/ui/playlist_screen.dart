@@ -243,12 +243,12 @@ Future<void> showAddToPlaylist(BuildContext context, Track track) {
                             color: Colors.white54),
                     onTap: () async {
                       await svc.addToPlaylist(p.id, track);
-                      if (context.mounted) {
-                        Navigator.pop(context);
-                        ScaffoldMessenger.of(context)
-                            .showSnackBar(SnackBar(
-                                content: Text(
-                                    'Added to ${p.name}')));
+                      if (c.mounted) {
+                        Navigator.pop(c);
+                        ScaffoldMessenger.of(c).showSnackBar(
+                            SnackBar(
+                                content:
+                                    Text('Added to ${p.name}')));
                       }
                     },
                   );
@@ -269,8 +269,8 @@ Future<void> showAddToPlaylist(BuildContext context, Track track) {
               title: const Text('New playlist',
                   style: TextStyle(color: Colors.white)),
               onTap: () async {
-                Navigator.pop(context);
-                final name = await showNewPlaylistDialog(context);
+                Navigator.pop(c);
+                final name = await showNewPlaylistDialog(c);
                 if (name == null) return;
                 final p = await svc.createPlaylist(name);
                 await svc.addToPlaylist(p.id, track);

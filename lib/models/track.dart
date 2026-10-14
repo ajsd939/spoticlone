@@ -35,14 +35,19 @@ class Track {
   factory Track.fromJson(Map m) => Track.fromBridge(m);
 
   factory Track.fromPiped(Map<String, dynamic> e) {
-    final url = (e['url'] ?? '') as String; // e.g. /watch?v=xxx
+    final url = (e['url'] ?? '').toString(); // e.g. /watch?v=xxx
     final id = url.contains('=') ? url.split('=').last : url;
+    int secs(dynamic v) {
+      if (v is num) return v.toInt();
+      return int.tryParse(v.toString()) ?? 0;
+    }
+
     return Track(
       videoId: id,
-      title: (e['title'] ?? 'Unknown') as String,
-      artist: (e['uploaderName'] ?? 'Unknown') as String,
-      artworkUrl: (e['thumbnail'] ?? '') as String,
-      durationSec: ((e['duration'] ?? 0) as num).toInt(),
+      title: (e['title'] ?? 'Unknown').toString(),
+      artist: (e['uploaderName'] ?? 'Unknown').toString(),
+      artworkUrl: (e['thumbnail'] ?? '').toString(),
+      durationSec: secs(e['duration']),
     );
   }
 

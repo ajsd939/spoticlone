@@ -86,7 +86,12 @@ class UpdateService {
   Future<ReleaseInfo?> newerRelease() async {
     final rel = await latestRelease();
     if (rel == null || rel.tag.isEmpty) return null;
-    final cur = (await PackageInfo.fromPlatform()).version;
+    String cur;
+    try {
+      cur = (await PackageInfo.fromPlatform()).version;
+    } catch (_) {
+      return null; // plugin unavailable: skip silently, never crash UI
+    }
     if (!isNewer(rel.tag, cur)) return null;
     return rel;
   }
@@ -100,8 +105,10 @@ class UpdateService {
   /// True when tag (e.g. "v1.2.0") is a newer semver than current
   /// ("1.1.9"). Non-numeric suffixes are ignored.
   static bool isNewer(String tag, String current) {
-    List<int> parts(String v) => v
-        .replaceAll(RegExp(r'^v'), '')
+    // Strip pre-release/build suffixes (-beta, +build) before compare.
+    String core(String v) =>
+        v.replaceAll(RegExp(r'^v'), '').split(RegExp(r'[-+]'))[0];
+    List<int> parts(String v) => core(v)
         .split('.')
         .map((e) => int.tryParse(RegExp(r'\d+').stringMatch(e) ?? '') ?? 0)
         .toList();

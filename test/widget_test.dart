@@ -113,8 +113,7 @@ void main() {
     expect(svc2.byId(PlaylistService.likedId), isNotNull);
   });
 
-  test('UpdateService version compare + asset picking', () {
-    expect(UpdateService.isNewer('v1.2.0', '1.1.9'), isTrue);
+  test('UpdateService version compare + asset picking', () {    expect(UpdateService.isNewer('v1.2.0', '1.1.9'), isTrue);
     expect(UpdateService.isNewer('v1.2.0', '1.2.0'), isFalse);
     expect(UpdateService.isNewer('1.0.0', '1.0.1'), isFalse);
     expect(UpdateService.isNewer('v2.0', '1.9.9'), isTrue);
@@ -133,5 +132,32 @@ void main() {
     expect(rel.setupExe!.downloadUrl, 'https://a/setup');
     expect(
         const ReleaseInfo(tag: 'v1', name: '', notes: '').apk, isNull);
+  });
+
+  test('UpdateService compare strips suffixes; Piped parsing tolerates shapes',
+      () {
+    expect(UpdateService.isNewer('v1.2.0', '1.2.0-beta'), isFalse);
+    expect(UpdateService.isNewer('v1.2.1-beta', '1.2.0'), isTrue);
+    final t = Track.fromPiped({
+      'url': '/watch?v=abc123',
+      'title': 'Song',
+      'uploaderName': 'Artist',
+      'thumbnail': 'https://img',
+      'duration': '215', // Piped sometimes sends strings
+    });
+    expect(t.videoId, 'abc123');
+    expect(t.durationSec, 215);
+  });
+
+  test('PlaylistService keeps good entries past a corrupt one', () async {
+    SharedPreferences.setMockInitialValues({
+      'spoticlone.playlists.v1': '[{"id":"liked","name":"Liked Songs",'
+          '"createdAt":"2026-01-01T00:00:00.000","tracks":[]},'
+          '{"id":42,"tracks":"not-a-list"}]',
+    });
+    final svc = PlaylistService();
+    await svc.load();
+    expect(svc.byId('liked')!.name, 'Liked Songs');
+    expect(svc.playlists.length, 1);
   });
 }
