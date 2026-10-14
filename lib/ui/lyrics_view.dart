@@ -86,8 +86,16 @@ class _LyricsViewState extends State<LyricsView> {
                 itemCount: lines.length,
                 itemBuilder: (c, i) => GestureDetector(
                   // Tapping a line jumps playback to its timestamp.
-                  onTap: () =>
-                      widget.handler.seek(lines[i].time),
+                  // Feedback is instant (highlight + scroll move now);
+                  // the audio follows as soon as the seek lands.
+                  onTap: () {
+                    _lastActive = i;
+                    if (_scroll.hasClients) {
+                      _scroll.jumpTo((i * 44.0).clamp(0.0,
+                          _scroll.position.maxScrollExtent));
+                    }
+                    widget.handler.seek(lines[i].time);
+                  },
                   behavior: HitTestBehavior.opaque,
                   child: Padding(
                     padding: const EdgeInsets.symmetric(

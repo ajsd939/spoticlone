@@ -12,14 +12,16 @@ import 'player_facade.dart' show QueueRepeat;
 // plays (resolve-ahead), so album/context play-through stays tight.
 class AppAudioHandler extends BaseAudioHandler with QueueHandler, SeekHandler {
   // Large buffers ride out throughput dips without rebuffer pauses.
-  // Audio-only, so even minutes of buffer are just a few MB.
+  // Audio-only, so even minutes of buffer are just a few MB. Resume
+  // thresholds stay low so seeks/line-taps restart almost instantly.
   final _player = AudioPlayer(
     audioLoadConfiguration: const AudioLoadConfiguration(
       androidLoadControl: AndroidLoadControl(
         minBufferDuration: Duration(seconds: 60),
         maxBufferDuration: Duration(minutes: 5),
-        bufferForPlaybackDuration: Duration(seconds: 3),
-        bufferForPlaybackAfterRebufferDuration: Duration(seconds: 8),
+        bufferForPlaybackDuration: Duration(milliseconds: 1500),
+        bufferForPlaybackAfterRebufferDuration:
+            Duration(seconds: 3),
       ),
     ),
   );
