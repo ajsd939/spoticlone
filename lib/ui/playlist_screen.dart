@@ -5,6 +5,7 @@ import '../models/track.dart';
 import '../core/di.dart';
 import '../core/theme.dart';
 import '../audio/player_facade.dart';
+import 'mini_player.dart';
 
 // Playlist detail: header + removable track rows. Rebuilds live via
 // ListenableBuilder so add/remove anywhere reflects instantly.
@@ -49,6 +50,12 @@ class PlaylistScreen extends StatelessWidget {
                   },
                 ),
             ],
+          ),
+          // Current-song bar (pushed pages cover Home's panel).
+          bottomNavigationBar: MiniPlayer(
+            handler: handler,
+            onTap: () =>
+                Navigator.popUntil(context, (r) => r.isFirst),
           ),
           body: CustomScrollView(
             slivers: [

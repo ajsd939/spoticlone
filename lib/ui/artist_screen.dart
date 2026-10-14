@@ -7,6 +7,7 @@ import '../core/theme.dart';
 import '../audio/player_facade.dart';
 import '../services/yt_bridge.dart';
 import 'album_screen.dart';
+import 'mini_player.dart';
 import 'playlist_screen.dart';
 
 // Artist page: header art + name, top tracks, albums/singles
@@ -57,6 +58,13 @@ class _ArtistScreenState extends State<ArtistScreen> {
     return Scaffold(
       backgroundColor: AppColors.background,
       appBar: AppBar(backgroundColor: AppColors.background),
+      // Current-song bar: pushed pages cover Home's panel, so the
+      // mini-player is repeated here (tap pops back to Home).
+      bottomNavigationBar: MiniPlayer(
+        handler: widget.handler,
+        onTap: () =>
+            Navigator.popUntil(context, (r) => r.isFirst),
+      ),
       body: FutureBuilder<Artist>(
         future: _future,
         builder: (c, snap) {
