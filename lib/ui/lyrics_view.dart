@@ -84,17 +84,24 @@ class _LyricsViewState extends State<LyricsView> {
                 controller: _scroll,
                 padding: const EdgeInsets.symmetric(vertical: 24),
                 itemCount: lines.length,
-                itemBuilder: (c, i) => Padding(
-                  padding: const EdgeInsets.symmetric(
-                      vertical: 8, horizontal: 24),
-                  child: Text(
-                    lines[i].text,
-                    style: TextStyle(
-                      fontSize: i == active ? 20 : 16,
-                      fontWeight: i == active
-                          ? FontWeight.w700
-                          : FontWeight.w400,
-                      color: i == active ? Colors.white : Colors.white38,
+                itemBuilder: (c, i) => GestureDetector(
+                  // Tapping a line jumps playback to its timestamp.
+                  onTap: () =>
+                      widget.handler.seek(lines[i].time),
+                  behavior: HitTestBehavior.opaque,
+                  child: Padding(
+                    padding: const EdgeInsets.symmetric(
+                        vertical: 8, horizontal: 24),
+                    child: Text(
+                      lines[i].text,
+                      style: TextStyle(
+                        fontSize: i == active ? 20 : 16,
+                        fontWeight: i == active
+                            ? FontWeight.w700
+                            : FontWeight.w400,
+                        color:
+                            i == active ? Colors.white : Colors.white38,
+                      ),
                     ),
                   ),
                 ),
