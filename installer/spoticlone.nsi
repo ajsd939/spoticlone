@@ -4,7 +4,7 @@
 !include "MUI2.nsh"
 
 !define APP_NAME "Spoticlone"
-!define APP_VERSION "1.0.0"
+!define APP_VERSION "1.0.1"
 !define PUBLISHER "Spoticlone"
 !define EXE "spoticlone.exe"
 !define SRC_DIR "..\build\windows\x64\runner\Release"
