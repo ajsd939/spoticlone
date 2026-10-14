@@ -1,3 +1,4 @@
+import 'dart:async';
 import 'package:flutter/material.dart';
 import 'package:cached_network_image/cached_network_image.dart';
 import 'package:sliding_up_panel/sliding_up_panel.dart';
@@ -48,6 +49,7 @@ class _HomeScreenState extends State<HomeScreen> {
   String? _resolvingId;
   int _playGen = 0;
   int _searchGen = 0;
+  StreamSubscription<int>? _indexSub;
 
   static const _shortcuts = [
     ('Top Hits', 'top hits 2026', Color(0xFFE13300), Icons.local_fire_department),
@@ -62,6 +64,16 @@ class _HomeScreenState extends State<HomeScreen> {
   void initState() {
     super.initState();
     _stream = StreamService(bridge: widget.bridge);
+    // Follow queue advances (auto-next, notification buttons) so the
+    // UI never shows a stale track while another one plays.
+    _indexSub = widget.handler.queueIndexStream.listen((i) {
+      final q = widget.handler.trackQueue;
+      if (!mounted || i < 0 || i >= q.length) return;
+      final t = q[i];
+      if (_current?.videoId != t.videoId) {
+        setState(() => _current = t);
+      }
+    });
     WidgetsBinding.instance.addPostFrameCallback((_) {
       if (!mounted) return;
       NotificationPermissionService.ensureRequested(context);
@@ -193,9 +205,14 @@ class _HomeScreenState extends State<HomeScreen> {
     }
   }
 
-  Future<void> _play(Track t) async {
+  /// Play [list] from [index] through the end (album order, or
+  /// shuffled when shuffle is on). Replaces _play everywhere.
+  Future<void> _playQueue(List<Track> list, int index) async {
+    if (list.isEmpty) return;
+    final i = index.clamp(0, list.length - 1);
     final gen = ++_playGen;
     final prev = _current;
+    final t = list[i];
     // Optimistic UI: the tapped track shows instantly. Waiting for the
     // 15s resolve left the old song on screen in silence, which read as
     // "stuck on the last song". Rolled back below on failure.
@@ -205,7 +222,7 @@ class _HomeScreenState extends State<HomeScreen> {
       _current = t;
     });
     try {
-      await widget.handler.playTrack(t);
+      await widget.handler.playTracks(list, startIndex: i);
       if (gen != _playGen || !mounted) return; // a newer tap won
     } catch (e) {
       if (gen != _playGen || !mounted) return;
@@ -232,7 +249,7 @@ class _HomeScreenState extends State<HomeScreen> {
           handler: widget.handler,
           artistId: artistId,
           bridge: widget.bridge,
-          onPlay: _play,
+          onPlayQueue: _playQueue,
         ),
       ),
     );
@@ -247,7 +264,7 @@ class _HomeScreenState extends State<HomeScreen> {
           handler: widget.handler,
           albumId: albumId,
           bridge: widget.bridge,
-          onPlay: _play,
+          onPlayQueue: _playQueue,
         ),
       ),
     );
@@ -255,6 +272,7 @@ class _HomeScreenState extends State<HomeScreen> {
 
   @override
   void dispose() {
+    _indexSub?.cancel();
     _query.dispose();
     super.dispose();
   }
@@ -366,7 +384,7 @@ class _HomeScreenState extends State<HomeScreen> {
                         return _quickCard(
                           title: t.title,
                           artUrl: t.artworkUrl,
-                          onTap: () => _play(t),
+                          onTap: () => _playQueue(_results, i),
                         );
                       }
                       final s = _shortcuts[i];
@@ -442,7 +460,7 @@ class _HomeScreenState extends State<HomeScreen> {
                                       PlaylistScreen(
                                     handler: widget.handler,
                                     playlistId: p.id,
-                                    onPlay: _play,
+                                    onPlayQueue: _playQueue,
                                   ),
                                 ),
                               ),
@@ -630,7 +648,7 @@ class _HomeScreenState extends State<HomeScreen> {
                           itemBuilder: (c, i) {
                             final t = _results[i];
                             return GestureDetector(
-                              onTap: () => _play(t),
+                              onTap: () => _playQueue(_results, i),
                               child: Container(
                                 width: 132,
                                 margin: const EdgeInsets.only(
@@ -753,7 +771,7 @@ class _HomeScreenState extends State<HomeScreen> {
                               style: const TextStyle(
                                   color: AppColors.grey,
                                   fontSize: 12)),
-                      onTap: () => _play(t),
+                      onTap: () => _playQueue(_results, i),
                       onLongPress: () =>
                           showAddToPlaylist(context, t),
                     );

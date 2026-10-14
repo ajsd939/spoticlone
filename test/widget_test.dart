@@ -5,6 +5,8 @@ import 'package:spoticlone/models/track.dart';
 import 'package:spoticlone/models/artist.dart';
 import 'package:spoticlone/models/playlist.dart';
 import 'package:spoticlone/services/update_service.dart';
+import 'package:spoticlone/audio/playback_queue.dart';
+import 'package:spoticlone/audio/player_facade.dart' show QueueRepeat;
 
 void main() {
   test('LRC parser extracts timestamps', () {
@@ -160,12 +162,53 @@ void main() {
     expect(svc.playlists.length, 1);
   });
 
-  test('Lyrics query helpers normalize credits', () {
-    expect(LyricsService.firstArtist('Kendrick Lamar, SZA'),
+  test('Lyrics query helpers normalize credits', () {    expect(LyricsService.firstArtist('Kendrick Lamar, SZA'),
         'Kendrick Lamar');
     expect(LyricsService.firstArtist('Drake'), 'Drake');
     expect(LyricsService.stripTitle('HUMBLE. (feat. Someone)'), 'HUMBLE.');
     expect(LyricsService.stripTitle('Song - Remaster'), 'Song - Remaster');
     expect(LyricsService.stripTitle('Plain Title'), 'Plain Title');
+  });
+
+  List<Track> demoTracks(int n) => List.generate(
+      n,
+      (i) => Track(
+          videoId: 'v$i', title: 'Song $i', artist: 'Artist'));
+
+  test('PlaybackQueue order, advance, wrap and shuffle', () {
+    final q = PlaybackQueue();
+    q.setQueue(demoTracks(4), startIndex: 1);
+    expect(q.current!.videoId, 'v1');
+    expect(q.advance(), isTrue);
+    expect(q.current!.videoId, 'v2');
+    expect(q.advance(), isTrue);
+    expect(q.current!.videoId, 'v3');
+    expect(q.advance(), isFalse); // end, repeat off
+    q.cycleRepeat();
+    expect(q.repeat, QueueRepeat.all);
+    expect(q.advance(), isTrue);
+    expect(q.current!.videoId, 'v0'); // wrapped
+    expect(q.back(), isTrue);
+    expect(q.current!.videoId, 'v3'); // wrapped back
+    q.cycleRepeat(); // all -> one
+    q.cycleRepeat(); // one -> off (finite walk below)
+    expect(q.repeat, QueueRepeat.off);
+    // Shuffle keeps the current track first, covers everything once.
+    q.setShuffle(true);
+    expect(q.shuffle, isTrue);
+    expect(q.current!.videoId, 'v3');
+    final seen = <String>{};
+    seen.add(q.current!.videoId);
+    while (q.advance()) {
+      expect(seen.add(q.current!.videoId), isTrue,
+          reason: 'no repeats before covering all');
+    }
+    expect(seen.length, 4);
+    final lastWalked = q.current!.videoId;
+    q.setShuffle(false);
+    expect(q.shuffle, isFalse);
+    // Unshuffling keeps whatever is playing, in natural order.
+    expect(q.current!.videoId, lastWalked);
+    expect(q.tracks[q.index].videoId, lastWalked);
   });
 }

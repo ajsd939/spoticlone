@@ -14,13 +14,13 @@ class AlbumScreen extends StatefulWidget {
   final PlayerFacade handler;
   final String albumId;
   final YtBridge? bridge;
-  final Future<void> Function(Track) onPlay;
+  final Future<void> Function(List<Track>, int) onPlayQueue;
   const AlbumScreen(
       {super.key,
       required this.handler,
       required this.albumId,
       this.bridge,
-      required this.onPlay});
+      required this.onPlayQueue});
 
   @override
   State<AlbumScreen> createState() => _AlbumScreenState();
@@ -108,8 +108,8 @@ class _AlbumScreenState extends State<AlbumScreen> {
                             const SizedBox(height: 10),
                             if (a.tracks.isNotEmpty)
                               GestureDetector(
-                                onTap: () =>
-                                    widget.onPlay(a.tracks.first),
+                                onTap: () => widget.onPlayQueue(
+                                    a.tracks, 0),
                                 child: Container(
                                   width: 48,
                                   height: 48,
@@ -157,7 +157,8 @@ class _AlbumScreenState extends State<AlbumScreen> {
                           '${t.durationSec ~/ 60}:${(t.durationSec % 60).toString().padLeft(2, '0')}',
                           style: const TextStyle(
                               color: AppColors.grey, fontSize: 12)),
-                      onTap: () => widget.onPlay(t),
+                      onTap: () =>
+                          widget.onPlayQueue(a.tracks, i),
                       onLongPress: () =>
                           showAddToPlaylist(context, t),
                     );

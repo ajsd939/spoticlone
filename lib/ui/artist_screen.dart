@@ -16,13 +16,13 @@ class ArtistScreen extends StatefulWidget {
   final PlayerFacade handler;
   final String artistId;
   final YtBridge? bridge;
-  final Future<void> Function(Track) onPlay;
+  final Future<void> Function(List<Track>, int) onPlayQueue;
   const ArtistScreen(
       {super.key,
       required this.handler,
       required this.artistId,
       this.bridge,
-      required this.onPlay});
+      required this.onPlayQueue});
 
   @override
   State<ArtistScreen> createState() => _ArtistScreenState();
@@ -46,7 +46,7 @@ class _ArtistScreenState extends State<ArtistScreen> {
           handler: widget.handler,
           albumId: a.id,
           bridge: widget.bridge,
-          onPlay: widget.onPlay,
+          onPlayQueue: widget.onPlayQueue,
         ),
       ),
     );
@@ -113,7 +113,8 @@ class _ArtistScreenState extends State<ArtistScreen> {
                             overflow: TextOverflow.ellipsis,
                             style: const TextStyle(
                                 color: AppColors.grey, fontSize: 13)),
-                        onTap: () => widget.onPlay(t),
+                        onTap: () =>
+                            widget.onPlayQueue(a.topTracks, i),
                         onLongPress: () =>
                             showAddToPlaylist(context, t),
                       );

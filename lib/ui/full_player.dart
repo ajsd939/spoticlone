@@ -34,8 +34,6 @@ class _FullPlayerState extends State<FullPlayer>
     with SingleTickerProviderStateMixin {
   late TabController _tabs;
   Color _dominant = const Color(0xFF2A2A2A);
-  bool _shuffle = false;
-  bool _repeat = false;
 
   @override
   void initState() {
@@ -356,13 +354,16 @@ class _FullPlayerState extends State<FullPlayer>
                 return Row(
                   mainAxisAlignment: MainAxisAlignment.center,
                   children: [
-                    IconButton(
-                        icon: Icon(Icons.shuffle,
-                            color: _shuffle
-                                ? AppColors.green
-                                : Colors.white54),
-                        onPressed: () => setState(
-                            () => _shuffle = !_shuffle)),
+                    StreamBuilder<bool>(
+                      stream: widget.handler.shuffleStream,
+                      builder: (c, sh) => IconButton(
+                          icon: Icon(Icons.shuffle,
+                              color: (sh.data ?? false)
+                                  ? AppColors.green
+                                  : Colors.white54),
+                          onPressed: () =>
+                              widget.handler.toggleShuffle()),
+                    ),
                     IconButton(
                         icon: const Icon(Icons.skip_previous,
                             color: Colors.white, size: 38),
@@ -394,16 +395,22 @@ class _FullPlayerState extends State<FullPlayer>
                             color: Colors.white, size: 38),
                         onPressed: () =>
                             widget.handler.skipToNext()),
-                    IconButton(
-                        icon: Icon(
-                            _repeat
-                                ? Icons.repeat_one
-                                : Icons.repeat,
-                            color: _repeat
-                                ? AppColors.green
-                                : Colors.white54),
-                        onPressed: () => setState(
-                            () => _repeat = !_repeat)),
+                    StreamBuilder<QueueRepeat>(
+                      stream: widget.handler.repeatStream,
+                      builder: (c, rp) {
+                        final mode = rp.data ?? QueueRepeat.off;
+                        return IconButton(
+                            icon: Icon(
+                                mode == QueueRepeat.one
+                                    ? Icons.repeat_one
+                                    : Icons.repeat,
+                                color: mode == QueueRepeat.off
+                                    ? Colors.white54
+                                    : AppColors.green),
+                            onPressed: () =>
+                                widget.handler.cycleRepeat());
+                      },
+                    ),
                   ],
                 );
               },

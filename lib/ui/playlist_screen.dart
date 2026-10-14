@@ -11,12 +11,12 @@ import '../audio/player_facade.dart';
 class PlaylistScreen extends StatelessWidget {
   final PlayerFacade handler;
   final String playlistId;
-  final Future<void> Function(Track) onPlay;
+  final Future<void> Function(List<Track>, int) onPlayQueue;
   const PlaylistScreen(
       {super.key,
       required this.handler,
       required this.playlistId,
-      required this.onPlay});
+      required this.onPlayQueue});
 
   @override
   Widget build(BuildContext context) {
@@ -77,7 +77,7 @@ class PlaylistScreen extends StatelessWidget {
                             if (p.tracks.isNotEmpty)
                               GestureDetector(
                                 onTap: () =>
-                                    onPlay(p.tracks.first),
+                                    onPlayQueue(p.tracks, 0),
                                 child: Container(
                                   width: 44,
                                   height: 44,
@@ -137,7 +137,7 @@ class PlaylistScreen extends StatelessWidget {
                         onPressed: () => svc.removeFromPlaylist(
                             p.id, t.videoId),
                       ),
-                      onTap: () => onPlay(t),
+                      onTap: () => onPlayQueue(p.tracks, i),
                     );
                   },
                   childCount: p.tracks.length,
