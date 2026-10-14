@@ -1,7 +1,6 @@
 import 'package:flutter/material.dart';
 import 'package:cached_network_image/cached_network_image.dart';
 import 'package:sliding_up_panel/sliding_up_panel.dart';
-import 'package:url_launcher/url_launcher.dart';
 import '../models/track.dart';
 import '../models/artist.dart';
 import '../models/playlist.dart';
@@ -9,6 +8,7 @@ import '../core/di.dart';
 import '../services/search_service.dart';
 import '../services/stream_service.dart';
 import '../services/update_service.dart';
+import '../services/ota_update_service.dart';
 import '../services/notification_permission_service.dart';
 import '../core/theme.dart';
 import '../audio/player_facade.dart';
@@ -75,31 +75,77 @@ class _HomeScreenState extends State<HomeScreen> {
   }
 
   Future<void> _checkUpdate() async {
-    final url = await UpdateService().newerApkUrl(
-      owner: AppConstants.updateOwner,
-      repo: AppConstants.updateRepo,
-    );
-    if (url == null || !mounted) return;
+    final rel = await UpdateService().newerRelease();
+    if (rel == null || !mounted) return;
+    final ota = OtaUpdateService();
+    final asset = ota.assetForPlatform(rel);
     showDialog(
       context: context,
       builder: (c) => AlertDialog(
-        title: const Text('Update available'),
-        content: const Text('A newer APK is available for download.'),
+        title: Text('Update ${rel.tag} available'),
+        content: SizedBox(
+          width: double.maxFinite,
+          child: SingleChildScrollView(
+            child: Text(
+                rel.notes.isNotEmpty
+                    ? rel.notes
+                    : 'Bug fixes and improvements.',
+                style: const TextStyle(fontSize: 13)),
+          ),
+        ),
         actions: [
           TextButton(
               onPressed: () => Navigator.pop(c),
               child: const Text('Later')),
-          FilledButton(
-            onPressed: () {
-              launchUrl(Uri.parse(url),
-                  mode: LaunchMode.externalApplication);
-              Navigator.pop(c);
-            },
-            child: const Text('Download'),
-          ),
+          if (asset != null)
+            FilledButton(
+              onPressed: () {
+                Navigator.pop(c);
+                _startOta(ota, rel, asset);
+              },
+              child: const Text('Download & Install'),
+            ),
         ],
       ),
     );
+  }
+
+  Future<void> _startOta(
+      OtaUpdateService ota, ReleaseInfo rel, ReleaseAsset asset) async {
+    final progress = ValueNotifier<double>(0);
+    showDialog(
+      context: context,
+      barrierDismissible: false,
+      builder: (c) => AlertDialog(
+        title: Text('Downloading ${rel.tag}'),
+        content: ValueListenableBuilder<double>(
+          valueListenable: progress,
+          builder: (c, v, _) => Column(
+            mainAxisSize: MainAxisSize.min,
+            children: [
+              LinearProgressIndicator(value: v),
+              const SizedBox(height: 8),
+              Text('${(v * 100).toStringAsFixed(0)}%'),
+            ],
+          ),
+        ),
+      ),
+    );
+    try {
+      final ext =
+          asset.name.toLowerCase().endsWith('.apk') ? '.apk' : '.exe';
+      final file = await ota.download(asset,
+          filename: 'spoticlone-${rel.tag}$ext',
+          onProgress: (v) => progress.value = v);
+      if (!mounted) return;
+      Navigator.pop(context); // close progress
+      await ota.install(file);
+    } catch (e) {
+      if (!mounted) return;
+      Navigator.pop(context);
+      ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(content: Text('Update failed: $e')));
+    }
   }
 
   Future<void> _doSearch(String q) async {

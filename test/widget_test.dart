@@ -4,6 +4,7 @@ import 'package:spoticlone/services/lyrics_service.dart';
 import 'package:spoticlone/models/track.dart';
 import 'package:spoticlone/models/artist.dart';
 import 'package:spoticlone/models/playlist.dart';
+import 'package:spoticlone/services/update_service.dart';
 
 void main() {
   test('LRC parser extracts timestamps', () {
@@ -80,8 +81,7 @@ void main() {
     expect(SearchResults.empty.isEmpty, isTrue);
   });
 
-  test('PlaylistService CRUD, likes and persistence', () async {
-    SharedPreferences.setMockInitialValues({});
+  test('PlaylistService CRUD, likes and persistence', () async {    SharedPreferences.setMockInitialValues({});
     final svc = PlaylistService();
     await svc.load();
     expect(svc.playlists.length, 1); // Liked Songs auto-created
@@ -111,5 +111,27 @@ void main() {
     expect(svc2.byId(pl.id), isNull);
     await svc2.deletePlaylist(PlaylistService.likedId); // protected
     expect(svc2.byId(PlaylistService.likedId), isNotNull);
+  });
+
+  test('UpdateService version compare + asset picking', () {
+    expect(UpdateService.isNewer('v1.2.0', '1.1.9'), isTrue);
+    expect(UpdateService.isNewer('v1.2.0', '1.2.0'), isFalse);
+    expect(UpdateService.isNewer('1.0.0', '1.0.1'), isFalse);
+    expect(UpdateService.isNewer('v2.0', '1.9.9'), isTrue);
+    const rel = ReleaseInfo(
+      tag: 'v1.2.0',
+      name: 'Release v1.2.0',
+      notes: '- fixes',
+      assets: [
+        ReleaseAsset(name: 'app-release.apk', downloadUrl: 'https://a/apk'),
+        ReleaseAsset(
+            name: 'Spoticlone-Setup-1.2.0.exe',
+            downloadUrl: 'https://a/setup'),
+      ],
+    );
+    expect(rel.apk!.downloadUrl, 'https://a/apk');
+    expect(rel.setupExe!.downloadUrl, 'https://a/setup');
+    expect(
+        const ReleaseInfo(tag: 'v1', name: '', notes: '').apk, isNull);
   });
 }
