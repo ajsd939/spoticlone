@@ -20,13 +20,18 @@ Set-Location $Root
 $Tag = "v$Version"
 Write-Host "=== Spoticlone release $Tag ===" -ForegroundColor Green
 
-# 0. Preconditions.
-foreach ($cmd in @("flutter", "gh")) {
-  if (!(Get-Command $cmd -ErrorAction SilentlyContinue)) {
-    throw "$cmd not found on PATH"
-  }
+# 0. Preconditions (background shells often lack user PATH entries,
+# so resolve flutter/gh with fallbacks instead of trusting PATH).
+function Resolve-Tool($name, $fallback) {
+  $c = Get-Command $name -ErrorAction SilentlyContinue
+  if ($c) { return $c.Source }
+  if ($fallback -and (Test-Path $fallback)) { return $fallback }
+  throw "$name not found (checked PATH and $fallback)"
 }
-gh auth status 2>&1 | Out-Null
+$Flutter = Resolve-Tool "flutter" `
+  "C:\Users\Filip\flutter-sdk\flutter\bin\flutter.bat"
+$Gh = Resolve-Tool "gh" $null
+& $Gh auth status 2>&1 | Out-Null
 if ($LASTEXITCODE -ne 0) { throw "gh is not authenticated (run: gh auth login)" }
 
 # 1. Stamp pubspec version (keep existing +N build number when present).
@@ -49,14 +54,14 @@ if ([string]::IsNullOrWhiteSpace($Notes)) {
 
 # 3. Builds.
 Write-Host "-- Android APK --" -ForegroundColor Cyan
-& flutter build apk --release
+& $Flutter build apk --release
 if ($LASTEXITCODE -ne 0) { throw "APK build failed" }
 $Apk = "$Root\build\app\outputs\flutter-apk\app-release.apk"
 
 $SetupExe = $null
 if (-not $SkipWindows) {
   Write-Host "-- Windows exe + NSIS installer --" -ForegroundColor Cyan
-  & flutter build windows -t lib/main_desktop.dart --release
+  & $Flutter build windows -t lib/main_desktop.dart --release
   if ($LASTEXITCODE -ne 0) { throw "Windows build failed" }
   Copy-Item -Recurse -Force "$Root\desktop\python" `
     "$Root\build\windows\x64\runner\Release\python"
@@ -80,6 +85,6 @@ $Notes | Out-File "$env:TEMP\spoticlone-notes.md" -Encoding utf8
 $ghArgs = @("release", "create", $Tag) + $assets +
   @("--title", "Release $Tag", "--notes-file", "$env:TEMP\spoticlone-notes.md")
 if ($Draft) { $ghArgs += "--draft" } else { $ghArgs += "--latest" }
-& gh @ghArgs
+& $Gh @ghArgs
 Write-Host "=== released $Tag ===" -ForegroundColor Green
 Write-Host "In-app updater picks this up via the Releases API automatically."
