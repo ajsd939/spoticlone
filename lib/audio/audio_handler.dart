@@ -11,7 +11,18 @@ import 'player_facade.dart' show QueueRepeat;
 // Queue: the next track's URL is resolved while the current one
 // plays (resolve-ahead), so album/context play-through stays tight.
 class AppAudioHandler extends BaseAudioHandler with QueueHandler, SeekHandler {
-  final _player = AudioPlayer();
+  // Large buffers ride out throughput dips without rebuffer pauses.
+  // Audio-only, so even minutes of buffer are just a few MB.
+  final _player = AudioPlayer(
+    audioLoadConfiguration: const AudioLoadConfiguration(
+      androidLoadControl: AndroidLoadControl(
+        minBufferDuration: Duration(seconds: 60),
+        maxBufferDuration: Duration(minutes: 5),
+        bufferForPlaybackDuration: Duration(seconds: 3),
+        bufferForPlaybackAfterRebufferDuration: Duration(seconds: 8),
+      ),
+    ),
+  );
   final _stream = StreamService();
   final _queue = PlaybackQueue();
   // Generation counter: a slow yt-dlp resolve must never hijack audio

@@ -97,7 +97,7 @@ def get_stream(query, video_id=""):
         target = f"https://www.youtube.com/watch?v={vid}"
     else:
         target = f"ytsearch1:{query}"
-    opts = {
+    base_opts = {
         "format": "bestaudio[ext=m4a]/bestaudio/best",
         "quiet": True,
         "no_warnings": True,
@@ -105,18 +105,33 @@ def get_stream(query, video_id=""):
         "skip_download": True,
         "extract_flat": False,
     }
-    try:
-        with yt_dlp.YoutubeDL(opts) as ydl:
-            info = ydl.extract_info(target, download=False)
+    # YouTube throttles default-client URLs (~30 KB/s -> rebuffering
+    # every few seconds). The android client serves full speed, so try
+    # it first and fall back to default clients when it yields nothing
+    # (SABR-only sessions) to preserve availability.
+    last_err = "no stream URL"
+    for extra in ({"youtube": {"player_client": ["android"]}}, None):
+        try:
+            opts = dict(base_opts)
+            if extra:
+                opts["extractor_args"] = extra
+            with yt_dlp.YoutubeDL(opts) as ydl:
+                info = ydl.extract_info(target, download=False)
             e = info["entries"][0] if "entries" in info else info
+            url = _coerce_str(e.get("url"))
+            if not url:
+                last_err = "empty stream URL"
+                continue
             return json.dumps({
-                "url": _coerce_str(e.get("url")),
+                "url": url,
                 "videoId": _coerce_str(e.get("id")),
                 "title": _coerce_str(e.get("title")),
                 "duration": _coerce_int(e.get("duration")),
             })
-    except Exception as e:
-        return json.dumps({"error": str(e)})
+        except Exception as e:
+            last_err = str(e)
+            continue
+    return json.dumps({"error": last_err})
 
 
 def call(method, query, video_id=""):

@@ -97,7 +97,7 @@ def get_stream(query, video_id=""):
         target = f"https://www.youtube.com/watch?v={vid}"
     else:
         target = f"ytsearch1:{query}"
-    opts = {
+    base_opts = {
         "format": "bestaudio[ext=m4a]/bestaudio/best",
         "quiet": True,
         "no_warnings": True,
@@ -105,18 +105,33 @@ def get_stream(query, video_id=""):
         "skip_download": True,
         "extract_flat": False,
     }
-    try:
-        with yt_dlp.YoutubeDL(opts) as ydl:
-            info = ydl.extract_info(target, download=False)
+    # YouTube throttles default-client URLs (~30 KB/s -> rebuffering
+    # every few seconds). The android client serves full speed, so try
+    # it first and fall back to default clients when it yields nothing
+    # (SABR-only sessions) to preserve availability.
+    last_err = "no stream URL"
+    for extra in ({"youtube": {"player_client": ["android"]}}, None):
+        try:
+            opts = dict(base_opts)
+            if extra:
+                opts["extractor_args"] = extra
+            with yt_dlp.YoutubeDL(opts) as ydl:
+                info = ydl.extract_info(target, download=False)
             e = info["entries"][0] if "entries" in info else info
+            url = _coerce_str(e.get("url"))
+            if not url:
+                last_err = "empty stream URL"
+                continue
             return json.dumps({
-                "url": _coerce_str(e.get("url")),
+                "url": url,
                 "videoId": _coerce_str(e.get("id")),
                 "title": _coerce_str(e.get("title")),
                 "duration": _coerce_int(e.get("duration")),
             })
-    except Exception as e:
-        return json.dumps({"error": str(e)})
+        except Exception as e:
+            last_err = str(e)
+            continue
+    return json.dumps({"error": last_err})
 
 
 def call(method, query, video_id=""):
@@ -202,12 +217,12 @@ def get_artist(artist_id):
         return json.dumps({"error": str(e)})
     try:
         channel = _coerce_str(a.get("channelId")) or str(artist_id or "")
-        songs = ((a.get("songs") or {}).get("results") or [])
+        songs = _section_results(a.get("songs"))
         albums_info = a.get("albums") or {}
         singles_info = a.get("singles") or {}
-        albums = [r for r in (albums_info.get("results") or [])
+        albums = [r for r in _section_results(albums_info)
                   if isinstance(r, dict)]
-        singles = [r for r in (singles_info.get("results") or [])
+        singles = [r for r in _section_results(singles_info)
                    if isinstance(r, dict)]
         # Full discography via the section browse endpoint (the
         # library's get_artist_albums can't parse current responses).
@@ -272,6 +287,15 @@ def get_album(album_id):
         return json.dumps({"error": str(e)})
 
 
+def _section_results(section):
+    """Track/album preview list tolerating dict- or list-shaped payloads."""
+    if isinstance(section, dict):
+        return section.get("results") or []
+    if isinstance(section, list):
+        return section
+    return []
+
+
 def _grid_album(item):
     """Normalize one musicTwoRowItemRenderer (album/single grid cell)."""
     r = (item or {}).get("musicTwoRowItemRenderer") or {}
@@ -319,7 +343,11 @@ def _fetch_section_items(section_browse_id, params):
         raise ValueError("no gridRenderer in section response")
     out = []
     for it in grid.get("items") or []:
-        alb = _grid_album(it)
+        # One odd cell must not abort the whole discography fetch.
+        try:
+            alb = _grid_album(it)
+        except Exception:
+            continue
         if alb["albumId"]:
             out.append(alb)
     # Follow further pages (e.g. huge discographies). The helper

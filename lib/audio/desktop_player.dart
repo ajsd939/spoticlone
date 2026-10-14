@@ -13,7 +13,11 @@ import 'player_facade.dart';
 // flyout + lock-screen controls). Same PlayerFacade the widgets use,
 // so all UI is shared with mobile.
 class DesktopPlayer implements PlayerFacade {
-  final mk.Player _player = mk.Player();
+  // 128 MB demuxer cache (libmpv default is 32) absorbs throttling dips.
+  final mk.Player _player = mk.Player(
+    configuration:
+        const mk.PlayerConfiguration(bufferSize: 128 * 1024 * 1024),
+  );
   final StreamService _stream;
   final _queue = PlaybackQueue();
   final _mediaItem = BehaviorSubject<MediaItem?>();
