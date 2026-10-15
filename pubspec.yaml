@@ -1,7 +1,7 @@
 name: spoticlone
 description: Spotify-style dark music player. yt-dlp via Chaquopy + just_audio + audio_service.
 publish_to: none
-version: 1.0.4+4
+version: 1.0.4+5
 environment:
   sdk: ^3.4.0
 
@@ -35,6 +35,7 @@ dev_dependencies:
 
 flutter:
   uses-material-design: true
+
 
 
 
