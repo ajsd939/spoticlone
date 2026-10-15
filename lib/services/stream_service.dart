@@ -24,8 +24,36 @@ class StreamService {
     return (url: url, duration: _toInt(m['duration'], t.durationSec));
   }
 
-  Future<SearchResults> pythonSearch(String q) async {
-    final raw = await _bridge.invoke('search', {'query': q});
+  /// Fill gaps for search items missing artist/duration (ATV uploads
+  /// carry neither). Returns the input untouched when complete, so the
+  /// common path costs zero extra bridge calls.
+  Future<Track> enrich(Track t) async {
+    final needsArtist =
+        t.artist.isEmpty || t.artist == 'Unknown' || t.artistId.isEmpty;
+    if (!needsArtist && t.durationSec > 0) return t;
+    final raw = await _bridge.invoke('song', {'videoId': t.videoId});
+    final m = _decodeMap(raw);
+    if (m['error'] != null) return t;
+    String str(dynamic v) => (v ?? '').toString();
+    final artist = str(m['artist']);
+    final title = str(m['title']);
+    final dur = _toInt(m['duration'], 0);
+    return Track(
+      videoId: t.videoId,
+      title: title.isNotEmpty ? title : t.title,
+      artist: artist.isNotEmpty && artist != 'Unknown'
+          ? artist
+          : t.artist,
+      artistId: str(m['artistId']).isNotEmpty
+          ? str(m['artistId'])
+          : t.artistId,
+      album: t.album,
+      artworkUrl: t.artworkUrl,
+      durationSec: dur > 0 ? dur : t.durationSec,
+    );
+  }
+
+  Future<SearchResults> pythonSearch(String q) async {    final raw = await _bridge.invoke('search', {'query': q});
     final decoded = _decodeAny(raw);
     if (decoded is Map && decoded['error'] != null) {
       throw Exception('search: ${decoded['error']}');

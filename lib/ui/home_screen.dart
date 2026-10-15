@@ -69,10 +69,9 @@ class _HomeScreenState extends State<HomeScreen> {
     _indexSub = widget.handler.queueIndexStream.listen((i) {
       final q = widget.handler.trackQueue;
       if (!mounted || i < 0 || i >= q.length) return;
-      final t = q[i];
-      if (_current?.videoId != t.videoId) {
-        setState(() => _current = t);
-      }
+      // Always follow: enrichment can change artist/duration in place
+      // without changing the videoId.
+      setState(() => _current = q[i]);
     });
     WidgetsBinding.instance.addPostFrameCallback((_) {
       if (!mounted) return;

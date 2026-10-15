@@ -211,4 +211,22 @@ void main() {
     expect(q.current!.videoId, lastWalked);
     expect(q.tracks[q.index].videoId, lastWalked);
   });
+
+  test('PlaybackQueue.updateTrack swaps metadata in place', () {
+    final q = PlaybackQueue();
+    q.setQueue([
+      const Track(videoId: 'v1', title: 'A', artist: 'Unknown'),
+      const Track(videoId: 'v2', title: 'B', artist: 'Known'),
+    ]);
+    q.updateTrack(
+        0,
+        const Track(
+            videoId: 'v1', title: 'A', artist: 'Real Artist'));
+    expect(q.tracks[0].artist, 'Real Artist');
+    expect(q.index, 0);
+    expect(q.current!.artist, 'Real Artist');
+    q.updateTrack(99,
+        const Track(videoId: 'x', title: 'X', artist: 'Y')); // no-op
+    expect(q.tracks.length, 2);
+  });
 }

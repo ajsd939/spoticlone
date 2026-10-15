@@ -20,6 +20,13 @@ class PlaybackQueue {
   int get index => _tracks.isEmpty ? 0 : _order[_pos];
   Track? get current => _tracks.isEmpty ? null : _tracks[index];
 
+  /// Swap a track in place (metadata enrichment) without disturbing
+  /// order or position.
+  void updateTrack(int index, Track track) {
+    if (index < 0 || index >= _tracks.length) return;
+    _tracks[index] = track;
+  }
+
   void setQueue(List<Track> tracks, {int startIndex = 0}) {
     _tracks = List<Track>.of(tracks);
     if (_tracks.isEmpty) {

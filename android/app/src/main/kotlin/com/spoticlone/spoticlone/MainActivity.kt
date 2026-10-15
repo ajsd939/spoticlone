@@ -38,6 +38,9 @@ class MainActivity : AudioServiceActivity() {
                             "search" -> py
                                 .callAttr("call", "search", query, "")
                                 .toString()
+                            "song" -> py
+                                .callAttr("call", "song", "", videoId)
+                                .toString()
                             "artist" -> py
                                 .callAttr("call", "artist", "", videoId)
                                 .toString()

@@ -95,15 +95,20 @@ class AppAudioHandler extends BaseAudioHandler with QueueHandler, SeekHandler {
   }
 
   Future<void> _playCurrent(int gen) async {
-    final t = _queue.current;
+    var t = _queue.current;
     if (t == null) return;
-    _queueIndex.add(_queue.index);
     // NOTE: mediaItem is added only AFTER resolve succeeds. Adding it
     // eagerly leaves the new track's title/art stuck in the mini-player,
     // notification and lock-screen when resolve fails, while the full
     // player still shows the previous song.
     await _player.stop();
     if (gen != _playGen) return; // superseded while stopping
+    // Fill artist/duration gaps (ATV uploads) before anything
+    // observes this track, so UI, lyrics and notification agree.
+    t = await _enrichIfNeeded(t);
+    if (gen != _playGen) return;
+    _queue.updateTrack(_queue.index, t);
+    _queueIndex.add(_queue.index);
     final s = await _resolveCached(t);
     if (gen != _playGen) return; // superseded during resolve: don't hijack
     // Prefer the resolved stream duration (metadata is often 0/wrong);
@@ -133,6 +138,15 @@ class AppAudioHandler extends BaseAudioHandler with QueueHandler, SeekHandler {
     final s = await _stream.resolve(t); // yt-dlp URL, fresh each play
     _resolved[t.videoId] = s;
     return s;
+  }
+
+  /// Best-effort gap fill; never throws (falls back to input).
+  Future<Track> _enrichIfNeeded(Track t) async {
+    try {
+      return await _stream.enrich(t);
+    } catch (_) {
+      return t;
+    }
   }
 
   void _prefetchNext(int gen) {

@@ -18,7 +18,12 @@ class LyricsView extends StatefulWidget {
 class _LyricsViewState extends State<LyricsView> {
   late Future<List<LyricLine>> _future;
   final _scroll = ScrollController();
+  // Measured per-line keys: pixel estimates drift with wrapped text,
+  // so the active line is scrolled via ensureVisible instead.
+  final _keys = <int, GlobalKey>{};
   int _lastActive = -1;
+  // While the user is manually reading, auto-scroll backs off.
+  DateTime? _userHoldUntil;
 
   @override
   void initState() {
@@ -32,7 +37,23 @@ class _LyricsViewState extends State<LyricsView> {
     if (old.track.videoId != widget.track.videoId) {
       _future = LyricsService().fetchSynced(widget.track);
       _lastActive = -1;
+      _userHoldUntil = null;
+      _keys.clear();
     }
+  }
+
+  /// Scroll the measured line widget into view (no pixel math,
+  /// so wrapped/long lines can never drift out of sight).
+  void _ensureVisible(int i, {bool fast = false}) {
+    if (!mounted) return;
+    final ctx = _keys[i]?.currentContext;
+    if (ctx == null) return;
+    Scrollable.ensureVisible(
+      ctx,
+      alignment: 0.35,
+      duration: Duration(milliseconds: fast ? 200 : 400),
+      curve: Curves.easeOut,
+    );
   }
 
   @override
@@ -64,51 +85,60 @@ class _LyricsViewState extends State<LyricsView> {
             for (var i = 0; i < lines.length; i++) {
               if (lines[i].time <= now) active = i;
             }
-            // Auto-scroll only when the active line actually changes:
-            // animating on every position tick fights user scrolling.
+            // Auto-scroll only when the active line actually changes,
+            // and never while the user is manually reading.
             if (active != _lastActive) {
               _lastActive = active;
-              WidgetsBinding.instance.addPostFrameCallback((_) {
-                if (!mounted || !_scroll.hasClients) return;
-                _scroll.animateTo(
-                  (active * 44.0).clamp(
-                      0.0, _scroll.position.maxScrollExtent),
-                  duration: const Duration(milliseconds: 400),
-                  curve: Curves.easeOut,
-                );
-              });
+              final hold = _userHoldUntil;
+              if (hold == null || DateTime.now().isAfter(hold)) {
+                WidgetsBinding.instance.addPostFrameCallback((_) {
+                  _ensureVisible(active);
+                });
+              }
             }
             return StreamBuilder<MediaItem?>(
               stream: widget.handler.mediaItem,
-              builder: (c, m) => ListView.builder(
-                controller: _scroll,
-                padding: const EdgeInsets.symmetric(vertical: 24),
-                itemCount: lines.length,
-                itemBuilder: (c, i) => GestureDetector(
-                  // Tapping a line jumps playback to its timestamp.
-                  // Feedback is instant (highlight + scroll move now);
-                  // the audio follows as soon as the seek lands.
-                  onTap: () {
-                    _lastActive = i;
-                    if (_scroll.hasClients) {
-                      _scroll.jumpTo((i * 44.0).clamp(0.0,
-                          _scroll.position.maxScrollExtent));
-                    }
-                    widget.handler.seek(lines[i].time);
-                  },
-                  behavior: HitTestBehavior.opaque,
-                  child: Padding(
-                    padding: const EdgeInsets.symmetric(
-                        vertical: 8, horizontal: 24),
-                    child: Text(
-                      lines[i].text,
-                      style: TextStyle(
-                        fontSize: i == active ? 20 : 16,
-                        fontWeight: i == active
-                            ? FontWeight.w700
-                            : FontWeight.w400,
-                        color:
-                            i == active ? Colors.white : Colors.white38,
+              builder: (c, m) =>
+                  NotificationListener<UserScrollNotification>(
+                onNotification: (_) {
+                  // Back off auto-scroll for a while after a manual drag.
+                  _userHoldUntil =
+                      DateTime.now().add(const Duration(seconds: 8));
+                  return false;
+                },
+                child: ListView.builder(
+                  controller: _scroll,
+                  padding: const EdgeInsets.symmetric(vertical: 24),
+                  itemCount: lines.length,
+                  itemBuilder: (c, i) => GestureDetector(
+                    // Tapping a line jumps playback to its timestamp.
+                    // Feedback is instant (highlight + scroll move now);
+                    // the audio follows as soon as the seek lands.
+                    onTap: () {
+                      _lastActive = i;
+                      _userHoldUntil = null;
+                      WidgetsBinding.instance
+                          .addPostFrameCallback((_) {
+                        _ensureVisible(i, fast: true);
+                      });
+                      widget.handler.seek(lines[i].time);
+                    },
+                    behavior: HitTestBehavior.opaque,
+                    child: Container(
+                      key: _keys.putIfAbsent(i, () => GlobalKey()),
+                      padding: const EdgeInsets.symmetric(
+                          vertical: 8, horizontal: 24),
+                      child: Text(
+                        lines[i].text,
+                        style: TextStyle(
+                          fontSize: i == active ? 20 : 16,
+                          fontWeight: i == active
+                              ? FontWeight.w700
+                              : FontWeight.w400,
+                          color: i == active
+                              ? Colors.white
+                              : Colors.white38,
+                        ),
                       ),
                     ),
                   ),

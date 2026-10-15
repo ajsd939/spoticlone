@@ -146,6 +146,8 @@ def call(method, query, video_id=""):
         m = str(method or "").lower()
         if m == "getstream":
             return get_stream(query, video_id)
+        if m == "song":
+            return get_song_details(video_id)
         if m in ("search", "search_music"):
             return search_music(query)
         if m == "artist":
@@ -294,6 +296,38 @@ def _section_results(section):
     if isinstance(section, list):
         return section
     return []
+
+
+def get_song_details(video_id):
+    """Fill gaps for search items missing artist/duration (ATV uploads).
+
+    videoDetails carries the clean title, real author, channel id and
+    true length. JSON string like everything else on the bridge.
+    """
+    try:
+        d = _ytm.get_song(video_id or "") or {}
+    except Exception as e:
+        return json.dumps({"error": str(e)})
+    try:
+        vd = d.get("videoDetails") or {}
+        author = _coerce_str(vd.get("author"))
+        # "Artist - Topic" auto-channels -> plain artist name.
+        if author.lower().endswith(" - topic"):
+            author = author[: -len(" - topic")].strip()
+        dur = 0
+        try:
+            dur = int(str(vd.get("lengthSeconds") or 0))
+        except Exception:
+            dur = 0
+        return json.dumps({
+            "videoId": _coerce_str(vd.get("videoId") or video_id),
+            "title": _coerce_str(vd.get("title")),
+            "artist": author,
+            "artistId": _coerce_str(vd.get("channelId")),
+            "duration": dur,
+        })
+    except Exception as e:
+        return json.dumps({"error": str(e)})
 
 
 def _grid_album(item):

@@ -114,13 +114,18 @@ class DesktopPlayer implements PlayerFacade {
   }
 
   Future<void> _playCurrent(int gen) async {
-    final t = _queue.current;
+    var t = _queue.current;
     if (t == null) return;
-    _queueIndex.add(_queue.index);
     _setResolving();
     try {
       await _player.stop();
       if (gen != _gen) return;
+      // Fill artist/duration gaps (ATV uploads) before anything
+      // observes this track, so UI, lyrics and taskbar agree.
+      t = await _enrichIfNeeded(t);
+      if (gen != _gen) return;
+      _queue.updateTrack(_queue.index, t);
+      _queueIndex.add(_queue.index);
       final s = await _resolveCached(t);
       if (gen != _gen) return;
       // Item published only once open() succeeds: a failed resolve
@@ -153,6 +158,15 @@ class DesktopPlayer implements PlayerFacade {
     final s = await _stream.resolve(t);
     _resolved[t.videoId] = s;
     return s;
+  }
+
+  /// Best-effort gap fill; never throws (falls back to input).
+  Future<Track> _enrichIfNeeded(Track t) async {
+    try {
+      return await _stream.enrich(t);
+    } catch (_) {
+      return t;
+    }
   }
 
   void _prefetchNext(int gen) {
