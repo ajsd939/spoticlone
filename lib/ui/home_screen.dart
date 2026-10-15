@@ -359,7 +359,7 @@ class _HomeScreenState extends State<HomeScreen> {
               if (_loading || _resolving)
                 const SliverToBoxAdapter(
                   child: LinearProgressIndicator(
-                      color: AppColors.green,
+                      color: AppColors.accent,
                       backgroundColor: Colors.transparent),
                 ),
               // Quick-pick grid: results first, else genre shortcuts.
@@ -449,12 +449,12 @@ class _HomeScreenState extends State<HomeScreen> {
                             decoration: BoxDecoration(
                               borderRadius:
                                   BorderRadius.circular(8),
-                              color: AppColors.green
+                              color: AppColors.accent
                                   .withValues(alpha: 0.15),
                             ),
                             child: const Icon(
                                 Icons.download_done,
-                                color: AppColors.green),
+                                color: AppColors.accent),
                           ),
                           title: const Text('Downloads',
                               style: TextStyle(
@@ -781,7 +781,7 @@ class _HomeScreenState extends State<HomeScreen> {
                           overflow: TextOverflow.ellipsis,
                           style: TextStyle(
                               color: active
-                                  ? AppColors.green
+                                  ? AppColors.accent
                                   : Colors.white,
                               fontWeight: FontWeight.w500)),
                       subtitle: GestureDetector(
@@ -803,7 +803,7 @@ class _HomeScreenState extends State<HomeScreen> {
                               height: 20,
                               child: CircularProgressIndicator(
                                   strokeWidth: 2,
-                                  color: AppColors.green))
+                                  color: AppColors.accent))
                           : Text(
                               _fmtDur(t.durationSec),
                               style: const TextStyle(

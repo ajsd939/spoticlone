@@ -52,7 +52,7 @@ class App : Application() {
             try {
                 startOnce(this)
             } catch (e: Exception) {
-                android.util.Log.e("Spoticlone", "Python.start failed", e)
+                android.util.Log.e("Nocrift", "Python.start failed", e)
             } finally {
                 markReady()
             }

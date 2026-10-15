@@ -234,7 +234,7 @@ class _FullPlayerState extends State<FullPlayer>
                             ? Icons.favorite
                             : Icons.favorite_border,
                         color: liked
-                            ? AppColors.green
+                            ? AppColors.accent
                             : Colors.white54,
                         size: 26),
                     onPressed: () => getIt<PlaylistService>()
@@ -359,7 +359,7 @@ class _FullPlayerState extends State<FullPlayer>
                       builder: (c, sh) => IconButton(
                           icon: Icon(Icons.shuffle,
                               color: (sh.data ?? false)
-                                  ? AppColors.green
+                                  ? AppColors.accent
                                   : Colors.white54),
                           onPressed: () =>
                               widget.handler.toggleShuffle()),
@@ -406,7 +406,7 @@ class _FullPlayerState extends State<FullPlayer>
                                     : Icons.repeat,
                                 color: mode == QueueRepeat.off
                                     ? Colors.white54
-                                    : AppColors.green),
+                                    : AppColors.accent),
                             onPressed: () =>
                                 widget.handler.cycleRepeat());
                       },

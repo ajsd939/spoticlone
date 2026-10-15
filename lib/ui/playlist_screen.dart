@@ -91,7 +91,7 @@ class PlaylistScreen extends StatelessWidget {
                                   height: 44,
                                   decoration:
                                       const BoxDecoration(
-                                    color: AppColors.green,
+                                    color: AppColors.accent,
                                     shape: BoxShape.circle,
                                   ),
                                   child: const Icon(
@@ -240,7 +240,7 @@ Future<void> showAddToPlaylist(BuildContext context, Track track) {
                     decoration: BoxDecoration(
                       borderRadius: BorderRadius.circular(8),
                       color: done
-                          ? AppColors.green.withValues(alpha: 0.2)
+                          ? AppColors.accent.withValues(alpha: 0.2)
                           : AppColors.cardLight,
                     ),
                     child: Icon(
@@ -248,7 +248,7 @@ Future<void> showAddToPlaylist(BuildContext context, Track track) {
                             ? Icons.download_done
                             : Icons.download_outlined,
                         color: done
-                            ? AppColors.green
+                            ? AppColors.accent
                             : Colors.white),
                   ),
                   title: Text(done ? 'Downloaded' : 'Download',
@@ -296,7 +296,7 @@ Future<void> showAddToPlaylist(BuildContext context, Track track) {
                             fontSize: 12)),
                     trailing: has
                         ? const Icon(Icons.check,
-                            color: AppColors.green)
+                            color: AppColors.accent)
                         : const Icon(Icons.add,
                             color: Colors.white54),
                     onTap: () async {
@@ -485,7 +485,7 @@ class DownloadsScreen extends StatelessWidget {
                   mainAxisSize: MainAxisSize.min,
                   children: [
                     const Icon(Icons.download_done,
-                        color: AppColors.green, size: 18),
+                        color: AppColors.accent, size: 18),
                     IconButton(
                       icon: const Icon(Icons.close,
                           color: Colors.white54, size: 20),

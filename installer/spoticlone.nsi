@@ -1,4 +1,4 @@
-; Spoticlone NSIS installer (per-user, no admin/UAC required).
+; Nocrift NSIS installer (per-user, no admin/UAC required).
 ; Build first: flutter build windows -t lib/main_desktop.dart --release
 ; Compile: installer\tools\nsis-3.11\makensis.exe installer\spoticlone.nsi
 !include "MUI2.nsh"

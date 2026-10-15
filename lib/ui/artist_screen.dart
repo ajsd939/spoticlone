@@ -71,7 +71,7 @@ class _ArtistScreenState extends State<ArtistScreen> {
           if (snap.connectionState == ConnectionState.waiting) {
             return const Center(
                 child:
-                    CircularProgressIndicator(color: AppColors.green));
+                    CircularProgressIndicator(color: AppColors.accent));
           }
           if (snap.hasError || !snap.hasData) {
             return Center(

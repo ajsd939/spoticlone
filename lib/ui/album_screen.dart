@@ -54,7 +54,7 @@ class _AlbumScreenState extends State<AlbumScreen> {
           if (snap.connectionState == ConnectionState.waiting) {
             return const Center(
                 child:
-                    CircularProgressIndicator(color: AppColors.green));
+                    CircularProgressIndicator(color: AppColors.accent));
           }
           if (snap.hasError || !snap.hasData) {
             return Center(
@@ -123,7 +123,7 @@ class _AlbumScreenState extends State<AlbumScreen> {
                                   height: 48,
                                   decoration:
                                       const BoxDecoration(
-                                    color: AppColors.green,
+                                    color: AppColors.accent,
                                     shape: BoxShape.circle,
                                   ),
                                   child: const Icon(Icons.play_arrow,

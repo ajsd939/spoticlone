@@ -56,7 +56,7 @@ class _BootApp extends StatelessWidget {
                       fontSize: 24,
                       fontWeight: FontWeight.w700)),
               SizedBox(height: 16),
-              CircularProgressIndicator(color: AppColors.green),
+              CircularProgressIndicator(color: AppColors.accent),
               SizedBox(height: 12),
               Text('Starting music backend…',
                   style: TextStyle(color: AppColors.grey)),

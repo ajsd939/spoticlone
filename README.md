@@ -55,7 +55,7 @@ Get the latest release from the
 |----------|------|---------|
 | Android  | `app-release.apk` | `adb install -r app-release.apk`, or open it on-device |
 | Windows  | `Nocrift-Setup-*.exe` (latest) | Run it (per-user, no admin needed) |
-| Windows portable | `Nocrift-Portable-*.zip` (latest) | Unzip anywhere, run `spoticlone.exe` |
+| Windows portable | `Nocrift-Portable-*.zip` (latest) | Unzip anywhere, run `Nocrift.exe` |
 
 Android needs a phone with free storage (~150 MB for the Python runtime);
 Windows needs Python 3 from [python.org](https://www.python.org) on PATH
