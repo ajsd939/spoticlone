@@ -5,6 +5,8 @@ import 'package:rxdart/rxdart.dart';
 import '../models/track.dart';
 import '../services/stream_service.dart';
 import '../services/yt_bridge.dart';
+import '../core/di.dart';
+import '../services/downloads_service.dart';
 import 'playback_queue.dart';
 import 'player_facade.dart';
 
@@ -27,7 +29,7 @@ class DesktopPlayer implements PlayerFacade {
   final _shuffleState = BehaviorSubject<bool>.seeded(false);
   final _repeatState =
       BehaviorSubject<QueueRepeat>.seeded(QueueRepeat.off);
-  final _resolved = <String, ({String url, int duration})>{};
+  final _resolved = <String, ({String url, int duration, String ext})>{};
   int _gen = 0;
   bool _completed = false;
   StreamSubscription? _playingSub;
@@ -126,7 +128,15 @@ class DesktopPlayer implements PlayerFacade {
       if (gen != _gen) return;
       _queue.updateTrack(_queue.index, t);
       _queueIndex.add(_queue.index);
-      final s = await _resolveCached(t);
+      // Offline first: a downloaded file plays instantly, no resolve.
+      final local = _localFile(t);
+      final s = local != null
+          ? (
+              url: Uri.file(local).toString(),
+              duration: t.durationSec,
+              ext: 'dl'
+            )
+          : await _resolveCached(t);
       if (gen != _gen) return;
       // Item published only once open() succeeds: a failed resolve
       // must not strand the new title in taskbar/SMTC with silence.
@@ -152,7 +162,7 @@ class DesktopPlayer implements PlayerFacade {
     }
   }
 
-  Future<({String url, int duration})> _resolveCached(Track t) async {
+  Future<({String url, int duration, String ext})> _resolveCached(Track t) async {
     final hit = _resolved[t.videoId];
     if (hit != null && hit.url.isNotEmpty) return hit;
     final s = await _stream.resolve(t);
@@ -169,9 +179,19 @@ class DesktopPlayer implements PlayerFacade {
     }
   }
 
+  /// Downloaded file path or null (service missing/corrupt safe).
+  String? _localFile(Track t) {
+    try {
+      return getIt<DownloadsService>().localPath(t.videoId);
+    } catch (_) {
+      return null;
+    }
+  }
+
   void _prefetchNext(int gen) {
     final next = _peekNext();
     if (next == null || _resolved.containsKey(next.videoId)) return;
+    if (_localFile(next) != null) return; // offline: nothing to fetch
     _stream.resolve(next).then((s) {
       if (gen == _gen) _resolved[next.videoId] = s;
     }).catchError((_) {

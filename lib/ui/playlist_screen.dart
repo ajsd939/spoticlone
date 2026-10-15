@@ -5,6 +5,7 @@ import '../models/track.dart';
 import '../core/di.dart';
 import '../core/theme.dart';
 import '../audio/player_facade.dart';
+import '../services/downloads_service.dart';
 import 'mini_player.dart';
 
 // Playlist detail: header + removable track rows. Rebuilds live via
@@ -226,6 +227,56 @@ Future<void> showAddToPlaylist(BuildContext context, Track track) {
                       fontSize: 16,
                       fontWeight: FontWeight.w700)),
             ),
+            // Offline download row (state follows the service).
+            ListenableBuilder(
+              listenable: getIt<DownloadsService>(),
+              builder: (c, _) {
+                final dl = getIt<DownloadsService>();
+                final done = dl.isDownloaded(track.videoId);
+                return ListTile(
+                  leading: Container(
+                    width: 44,
+                    height: 44,
+                    decoration: BoxDecoration(
+                      borderRadius: BorderRadius.circular(8),
+                      color: done
+                          ? AppColors.green.withValues(alpha: 0.2)
+                          : AppColors.cardLight,
+                    ),
+                    child: Icon(
+                        done
+                            ? Icons.download_done
+                            : Icons.download_outlined,
+                        color: done
+                            ? AppColors.green
+                            : Colors.white),
+                  ),
+                  title: Text(done ? 'Downloaded' : 'Download',
+                      style:
+                          const TextStyle(color: Colors.white)),
+                  subtitle: Text(
+                      done
+                          ? 'Playable offline • tap to delete'
+                          : 'Save for offline listening',
+                      style: const TextStyle(
+                          color: AppColors.grey, fontSize: 12)),
+                  onTap: () async {
+                    Navigator.pop(c);
+                    if (done) {
+                      await dl.delete(track.videoId);
+                      if (context.mounted) {
+                        ScaffoldMessenger.of(context)
+                            .showSnackBar(const SnackBar(
+                                content:
+                                    Text('Download deleted')));
+                      }
+                    } else {
+                      await startDownload(context, track);
+                    }
+                  },
+                );
+              },
+            ),
             Flexible(
               child: ListView.builder(
                 shrinkWrap: true,
@@ -291,9 +342,50 @@ Future<void> showAddToPlaylist(BuildContext context, Track track) {
   );
 }
 
+// Download [track] with a blocking progress dialog.
+Future<void> startDownload(BuildContext context, Track track) async {
+  final svc = getIt<DownloadsService>();
+  final progress = ValueNotifier<double>(0);
+  showDialog(
+    context: context,
+    barrierDismissible: false,
+    builder: (c) => AlertDialog(
+      backgroundColor: AppColors.card,
+      title: const Text('Downloading',
+          style: TextStyle(color: Colors.white)),
+      content: ValueListenableBuilder<double>(
+        valueListenable: progress,
+        builder: (c, v, _) => Column(
+          mainAxisSize: MainAxisSize.min,
+          children: [
+            LinearProgressIndicator(value: v),
+            const SizedBox(height: 8),
+            Text('${(v * 100).toStringAsFixed(0)}%',
+                style: const TextStyle(color: Colors.white70)),
+          ],
+        ),
+      ),
+    ),
+  );
+  try {
+    await svc.download(track,
+        onProgress: (v) => progress.value = v);
+    if (!context.mounted) return;
+    Navigator.pop(context);
+    ScaffoldMessenger.of(context).showSnackBar(
+        const SnackBar(content: Text('Saved for offline listening')));
+  } catch (e) {
+    if (!context.mounted) return;
+    Navigator.pop(context);
+    ScaffoldMessenger.of(context).showSnackBar(
+        SnackBar(content: Text('Download failed: $e')));
+  } finally {
+    progress.dispose();
+  }
+}
+
 // Name prompt for a new playlist. Returns null on cancel.
-Future<String?> showNewPlaylistDialog(BuildContext context) {
-  final ctrl = TextEditingController();
+Future<String?> showNewPlaylistDialog(BuildContext context) {  final ctrl = TextEditingController();
   return showDialog<String>(
     context: context,
     builder: (c) => AlertDialog(
@@ -322,4 +414,92 @@ Future<String?> showNewPlaylistDialog(BuildContext context) {
       ],
     ),
   );
+}
+
+// Offline library: downloaded tracks with delete + tap-to-play.
+class DownloadsScreen extends StatelessWidget {
+  final PlayerFacade handler;
+  final Future<void> Function(List<Track>, int) onPlayQueue;
+  const DownloadsScreen(
+      {super.key, required this.handler, required this.onPlayQueue});
+
+  @override
+  Widget build(BuildContext context) {
+    final svc = getIt<DownloadsService>();
+    return Scaffold(
+      backgroundColor: AppColors.background,
+      appBar: AppBar(
+        backgroundColor: AppColors.background,
+        title: const Text('Downloads'),
+      ),
+      // Current-song bar (pushed pages cover Home's panel).
+      bottomNavigationBar: MiniPlayer(
+        handler: handler,
+        onTap: () =>
+            Navigator.popUntil(context, (r) => r.isFirst),
+      ),
+      body: ListenableBuilder(
+        listenable: svc,
+        builder: (c, _) {
+          final tracks = svc.tracks;
+          if (tracks.isEmpty) {
+            return const Center(
+              child: Text(
+                  'Nothing downloaded yet.\nLong-press a song, then Download.',
+                  textAlign: TextAlign.center,
+                  style: TextStyle(color: AppColors.grey)),
+            );
+          }
+          return ListView.builder(
+            itemCount: tracks.length,
+            itemBuilder: (c, i) {
+              final t = tracks[i];
+              return ListTile(
+                leading: ClipRRect(
+                  borderRadius: BorderRadius.circular(4),
+                  child: CachedNetworkImage(
+                    imageUrl: t.artworkUrl,
+                    width: 48,
+                    height: 48,
+                    fit: BoxFit.cover,
+                    errorWidget: (_, __, ___) => Container(
+                        width: 48,
+                        height: 48,
+                        color: AppColors.cardLight,
+                        child: const Icon(Icons.music_note,
+                            color: Colors.white54)),
+                  ),
+                ),
+                title: Text(t.title,
+                    maxLines: 1,
+                    overflow: TextOverflow.ellipsis,
+                    style: const TextStyle(
+                        color: Colors.white,
+                        fontWeight: FontWeight.w500)),
+                subtitle: Text(t.artist,
+                    maxLines: 1,
+                    overflow: TextOverflow.ellipsis,
+                    style: const TextStyle(
+                        color: AppColors.grey, fontSize: 13)),
+                trailing: Row(
+                  mainAxisSize: MainAxisSize.min,
+                  children: [
+                    const Icon(Icons.download_done,
+                        color: AppColors.green, size: 18),
+                    IconButton(
+                      icon: const Icon(Icons.close,
+                          color: Colors.white54, size: 20),
+                      onPressed: () =>
+                          svc.delete(t.videoId),
+                    ),
+                  ],
+                ),
+                onTap: () => onPlayQueue(tracks, i),
+              );
+            },
+          );
+        },
+      ),
+    );
+  }
 }

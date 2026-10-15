@@ -3,12 +3,12 @@
 ; Compile: installer\tools\nsis-3.11\makensis.exe installer\spoticlone.nsi
 !include "MUI2.nsh"
 
-!define APP_NAME "Spoticlone"
-!define APP_VERSION "1.0.4"
-!define PUBLISHER "Spoticlone"
+!define APP_NAME "Nocrift"
+!define APP_VERSION "1.1.0"
+!define PUBLISHER "Nocrift"
 !define EXE "spoticlone.exe"
 !define SRC_DIR "..\build\windows\x64\runner\Release"
-!define OUT_FILE "Spoticlone-Setup-${APP_VERSION}.exe"
+!define OUT_FILE "Nocrift-Setup-${APP_VERSION}.exe"
 
 Name "${APP_NAME} ${APP_VERSION}"
 OutFile "${OUT_FILE}"

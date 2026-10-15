@@ -1,3 +1,4 @@
+import 'dart:io';
 import 'package:flutter_test/flutter_test.dart';
 import 'package:shared_preferences/shared_preferences.dart';
 import 'package:spoticlone/services/lyrics_service.dart';
@@ -5,6 +6,7 @@ import 'package:spoticlone/models/track.dart';
 import 'package:spoticlone/models/artist.dart';
 import 'package:spoticlone/models/playlist.dart';
 import 'package:spoticlone/services/update_service.dart';
+import 'package:spoticlone/services/downloads_service.dart';
 import 'package:spoticlone/audio/playback_queue.dart';
 import 'package:spoticlone/audio/player_facade.dart' show QueueRepeat;
 
@@ -212,8 +214,7 @@ void main() {
     expect(q.tracks[q.index].videoId, lastWalked);
   });
 
-  test('PlaybackQueue.updateTrack swaps metadata in place', () {
-    final q = PlaybackQueue();
+  test('PlaybackQueue.updateTrack swaps metadata in place', () {    final q = PlaybackQueue();
     q.setQueue([
       const Track(videoId: 'v1', title: 'A', artist: 'Unknown'),
       const Track(videoId: 'v2', title: 'B', artist: 'Known'),
@@ -228,5 +229,36 @@ void main() {
     q.updateTrack(99,
         const Track(videoId: 'x', title: 'X', artist: 'Y')); // no-op
     expect(q.tracks.length, 2);
+  });
+
+  test('DownloadsService register/delete/persist with temp dir',
+      () async {
+    SharedPreferences.setMockInitialValues({});
+    final dir =
+        await Directory.systemTemp.createTemp('nocrift-dl-test');
+    final svc = DownloadsService(directory: dir);
+    await svc.load();
+    expect(svc.count, 0);
+    const t = Track(videoId: 'v9', title: 'Song', artist: 'Artist');
+    final f = File('${dir.path}/v9.m4a');
+    await f.writeAsBytes([1, 2, 3]);
+    await svc.registerDownload(t, f.path);
+    expect(svc.isDownloaded('v9'), isTrue);
+    expect(svc.localPath('v9'), f.path);
+    expect(svc.tracks.first.title, 'Song');
+    // A vanished file drops the entry lazily.
+    await f.delete();
+    expect(svc.localPath('v9'), isNull);
+    expect(svc.isDownloaded('v9'), isFalse);
+    // Persistence round-trip.
+    await f.writeAsBytes([1, 2, 3]);
+    await svc.registerDownload(t, f.path);
+    final svc2 = DownloadsService(directory: dir);
+    await svc2.load();
+    expect(svc2.isDownloaded('v9'), isTrue);
+    await svc2.delete('v9');
+    expect(svc2.isDownloaded('v9'), isFalse);
+    expect(await f.exists(), isFalse);
+    await dir.delete(recursive: true);
   });
 }

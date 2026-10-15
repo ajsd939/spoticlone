@@ -64,7 +64,7 @@ class OtaUpdateService {
         final req = await Permission.requestInstallPackages.request();
         if (!req.isGranted) {
           throw Exception(
-              'Allow "Install unknown apps" for Spoticlone to update');
+              'Allow "Install unknown apps" for Nocrift to update');
         }
       }
     }

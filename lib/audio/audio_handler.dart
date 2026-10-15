@@ -3,6 +3,8 @@ import 'package:just_audio/just_audio.dart';
 import 'package:rxdart/rxdart.dart';
 import '../models/track.dart';
 import '../services/stream_service.dart';
+import '../core/di.dart';
+import '../services/downloads_service.dart';
 import 'playback_queue.dart';
 import 'player_facade.dart' show QueueRepeat;
 
@@ -31,7 +33,7 @@ class AppAudioHandler extends BaseAudioHandler with QueueHandler, SeekHandler {
   // after the user already tapped a newer track.
   int _playGen = 0;
   // Resolved stream URLs by videoId (survives queue switches).
-  final _resolved = <String, ({String url, int duration})>{};
+  final _resolved = <String, ({String url, int duration, String ext})>{};
   final _queueIndex = BehaviorSubject<int>.seeded(0);
   final _shuffleState = BehaviorSubject<bool>.seeded(false);
   final _repeatState =
@@ -109,7 +111,11 @@ class AppAudioHandler extends BaseAudioHandler with QueueHandler, SeekHandler {
     if (gen != _playGen) return;
     _queue.updateTrack(_queue.index, t);
     _queueIndex.add(_queue.index);
-    final s = await _resolveCached(t);
+    // Offline first: a downloaded file plays instantly, no resolve.
+    final local = _localFile(t);
+    final s = local != null
+        ? (url: Uri.file(local).toString(), duration: t.durationSec, ext: 'dl')
+        : await _resolveCached(t);
     if (gen != _playGen) return; // superseded during resolve: don't hijack
     // Prefer the resolved stream duration (metadata is often 0/wrong);
     // the notification total would otherwise read 0:00 while playing.
@@ -132,7 +138,7 @@ class AppAudioHandler extends BaseAudioHandler with QueueHandler, SeekHandler {
     _prefetchNext(gen);
   }
 
-  Future<({String url, int duration})> _resolveCached(Track t) async {
+  Future<({String url, int duration, String ext})> _resolveCached(Track t) async {
     final hit = _resolved[t.videoId];
     if (hit != null && hit.url.isNotEmpty) return hit;
     final s = await _stream.resolve(t); // yt-dlp URL, fresh each play
@@ -149,11 +155,21 @@ class AppAudioHandler extends BaseAudioHandler with QueueHandler, SeekHandler {
     }
   }
 
+  /// Downloaded file path or null (service missing/corrupt safe).
+  String? _localFile(Track t) {
+    try {
+      return getIt<DownloadsService>().localPath(t.videoId);
+    } catch (_) {
+      return null;
+    }
+  }
+
   void _prefetchNext(int gen) {
     final order = _upcomingIndices();
     if (order.isEmpty) return;
     final next = _queue.tracks[order.first];
     if (_resolved.containsKey(next.videoId)) return;
+    if (_localFile(next) != null) return; // offline: nothing to fetch
     // Fire-and-forget: guarded so a queue switch drops the result.
     _stream.resolve(next).then((s) {
       if (gen == _playGen) _resolved[next.videoId] = s;

@@ -1,6 +1,6 @@
 <#
 .SYNOPSIS
-  Build + publish a Spoticlone release via gh cli (100% free stack).
+  Build + publish a Nocrift release via gh cli (100% free stack).
 .EXAMPLE
   .\tool\release.ps1 -Version 1.1.0 -Notes "Playlists are here"
   .\tool\release.ps1 -Version 1.1.0            # notes from git log
@@ -18,7 +18,7 @@ $Root = Split-Path (Split-Path $MyInvocation.MyCommand.Path -Parent) -Parent
 Set-Location $Root
 
 $Tag = "v$Version"
-Write-Host "=== Spoticlone release $Tag ===" -ForegroundColor Green
+Write-Host "=== Nocrift release $Tag ===" -ForegroundColor Green
 
 # 0. Preconditions (background shells often lack user PATH entries,
 # so resolve flutter/gh with fallbacks instead of trusting PATH).
@@ -80,13 +80,13 @@ if (-not $SkipWindows) {
   if (!(Test-Path $nsis)) { throw "NSIS not found (winget install NSIS.NSIS)" }
   & $nsis "$Root\installer\spoticlone.nsi"
   if ($LASTEXITCODE -ne 0) { throw "NSIS compile failed" }
-  $SetupExe = Get-ChildItem "$Root\installer\Spoticlone-Setup-*.exe" |
+  $SetupExe = Get-ChildItem "$Root\installer\Nocrift-Setup-*.exe" |
     Sort-Object LastWriteTime -Descending | Select-Object -First 1
   Write-Host "installer -> $($SetupExe.FullName)"
   # Portable zip (versioned, replaces any older ones).
-  $PortableZip = "$Root\dist\Spoticlone-Portable-$Version.zip"
+  $PortableZip = "$Root\dist\Nocrift-Portable-$Version.zip"
   New-Item -ItemType Directory -Force -Path "$Root\dist" | Out-Null
-  Remove-Item "$Root\dist\Spoticlone-Portable-*.zip" -Force `
+  Remove-Item "$Root\dist\Nocrift-Portable-*.zip" -Force `
     -ErrorAction SilentlyContinue
   Compress-Archive -Path "$Root\build\windows\x64\runner\Release\*" `
     -DestinationPath $PortableZip

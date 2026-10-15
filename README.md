@@ -1,8 +1,9 @@
-# Spoticlone
+# Nocrift
 
 A **free Spotify alternative** for Android and Windows. Search millions of songs,
-play them with gapless background audio, read synced lyrics, browse artists and
-albums, and keep your own playlists — no account, no subscription, no ads.
+play them with gapless background audio, save them offline, read synced lyrics,
+browse artists and albums, and keep your own playlists — no account, no
+subscription, no ads.
 
 ![platforms](https://img.shields.io/badge/Android APK-black) ![platforms](https://img.shields.io/badge/Windows Setup-blue)
 [![release](https://img.shields.io/github/v/release/ajsd939/spoticlone)](https://github.com/ajsd939/spoticlone/releases/latest)
@@ -14,6 +15,8 @@ albums, and keep your own playlists — no account, no subscription, no ads.
 - **Gapless background playback** — music keeps playing with the screen off,
   plus lock-screen / notification controls (Android) and taskbar flyout
   controls (Windows).
+- **Offline downloads** — long-press any song, hit Download, and it plays
+  from local storage with no network at all.
 - **Synced lyrics** — line-by-line highlighting from the free LRCLIB database.
 - **Artist pages** — photo header, top tracks, complete albums and singles
   discographies (not just the top 10).
@@ -51,7 +54,8 @@ Get the latest release from the
 | Platform | File | Install |
 |----------|------|---------|
 | Android  | `app-release.apk` | `adb install -r app-release.apk`, or open it on-device |
-| Windows  | `Spoticlone-Setup-1.0.0.exe` | Run it (per-user, no admin needed) |
+| Windows  | `Nocrift-Setup-*.exe` (latest) | Run it (per-user, no admin needed) |
+| Windows portable | `Nocrift-Portable-*.zip` (latest) | Unzip anywhere, run `spoticlone.exe` |
 
 Android needs a phone with free storage (~150 MB for the Python runtime);
 Windows needs Python 3 from [python.org](https://www.python.org) on PATH

@@ -10,6 +10,7 @@ import '../services/search_service.dart';
 import '../services/stream_service.dart';
 import '../services/update_service.dart';
 import '../services/ota_update_service.dart';
+import '../services/downloads_service.dart';
 import '../services/notification_permission_service.dart';
 import '../core/theme.dart';
 import '../audio/player_facade.dart';
@@ -148,7 +149,7 @@ class _HomeScreenState extends State<HomeScreen> {
       final ext =
           asset.name.toLowerCase().endsWith('.apk') ? '.apk' : '.exe';
       final file = await ota.download(asset,
-          filename: 'spoticlone-${rel.tag}$ext',
+          filename: 'nocrift-\${rel.tag}$ext',
           onProgress: (v) => progress.value = v);
       if (!mounted) return;
       Navigator.pop(context); // close progress
@@ -403,7 +404,10 @@ class _HomeScreenState extends State<HomeScreen> {
               // Your Library: Liked Songs + user playlists.
               SliverToBoxAdapter(
                 child: ListenableBuilder(
-                  listenable: getIt<PlaylistService>(),
+                  listenable: Listenable.merge([
+                    getIt<PlaylistService>(),
+                    getIt<DownloadsService>(),
+                  ]),
                   builder: (c, _) {
                     final svc = getIt<PlaylistService>();
                     return Column(
@@ -437,8 +441,43 @@ class _HomeScreenState extends State<HomeScreen> {
                             ],
                           ),
                         ),
+                        // Offline downloads entry.
+                        ListTile(
+                          leading: Container(
+                            width: 48,
+                            height: 48,
+                            decoration: BoxDecoration(
+                              borderRadius:
+                                  BorderRadius.circular(8),
+                              color: AppColors.green
+                                  .withValues(alpha: 0.15),
+                            ),
+                            child: const Icon(
+                                Icons.download_done,
+                                color: AppColors.green),
+                          ),
+                          title: const Text('Downloads',
+                              style: TextStyle(
+                                  color: Colors.white,
+                                  fontWeight: FontWeight.w500)),
+                          subtitle: Text(
+                              '${getIt<DownloadsService>().count} songs offline',
+                              style: const TextStyle(
+                                  color: AppColors.grey,
+                                  fontSize: 13)),
+                          onTap: () => Navigator.push(
+                            context,
+                            MaterialPageRoute(
+                              builder: (_) => DownloadsScreen(
+                                handler: widget.handler,
+                                onPlayQueue: _playQueue,
+                              ),
+                            ),
+                          ),
+                        ),
                         ...svc.playlists.map((p) => ListTile(
-                              leading: PlaylistScreen.art(p, 48),
+                              leading:
+                                  PlaylistScreen.art(p, 48),
                               title: Text(p.name,
                                   maxLines: 1,
                                   overflow:

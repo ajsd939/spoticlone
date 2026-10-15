@@ -17,7 +17,7 @@ Future<void> main() async {
     const WindowOptions(
       size: Size(480, 850),
       minimumSize: Size(380, 650),
-      title: 'Spoticlone',
+      title: 'Nocrift',
       backgroundColor: AppColors.background,
     ),
     () async => windowManager.show(),
@@ -28,14 +28,14 @@ Future<void> main() async {
   runApp(const _BootApp());
   late final DesktopYtBridge bridge;
   try {
-    await setupLocator();
     bridge = await DesktopYtBridge.create();
+    await setupLocator(bridge: bridge);
   } catch (e) {
     runApp(_FatalErrorApp(message: e.toString()));
     return;
   }
   final player = DesktopPlayer(bridge: bridge);
-  runApp(SpoticloneDesktopApp(player: player, bridge: bridge));
+  runApp(NocriftDesktopApp(player: player, bridge: bridge));
 }
 
 class _BootApp extends StatelessWidget {
@@ -50,7 +50,7 @@ class _BootApp extends StatelessWidget {
           child: Column(
             mainAxisSize: MainAxisSize.min,
             children: const [
-              Text('Spoticlone',
+              Text('Nocrift',
                   style: TextStyle(
                       color: Colors.white,
                       fontSize: 24,
@@ -68,16 +68,16 @@ class _BootApp extends StatelessWidget {
   }
 }
 
-class SpoticloneDesktopApp extends StatelessWidget {
+class NocriftDesktopApp extends StatelessWidget {
   final DesktopPlayer player;
   final DesktopYtBridge bridge;
-  const SpoticloneDesktopApp(
+  const NocriftDesktopApp(
       {super.key, required this.player, required this.bridge});
 
   @override
   Widget build(BuildContext context) {
     return MaterialApp(
-      title: 'Spoticlone',
+      title: 'Nocrift',
       theme: spotifyTheme,
       home: HomeScreen(handler: player, bridge: bridge),
     );

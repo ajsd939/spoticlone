@@ -12,7 +12,7 @@ class StreamService {
   StreamService({YtBridge? bridge})
       : _bridge = bridge ?? AndroidYtBridge();
 
-  Future<({String url, int duration})> resolve(Track t) async {
+  Future<({String url, int duration, String ext})> resolve(Track t) async {
     final raw = await _bridge.invoke('getStream', {
       'query': t.searchQuery, // fallback if videoId missing/invalid
       'videoId': t.videoId, // exact tapped video: no re-search drift
@@ -21,7 +21,13 @@ class StreamService {
     if (m['error'] != null) throw Exception('yt-dlp: ${m['error']}');
     final url = (m['url'] ?? '').toString();
     if (url.isEmpty) throw Exception('yt-dlp returned no stream URL');
-    return (url: url, duration: _toInt(m['duration'], t.durationSec));
+    var ext = (m['ext'] ?? 'm4a').toString().toLowerCase();
+    if (!RegExp(r'^[a-z0-9]{2,5}$').hasMatch(ext)) ext = 'm4a';
+    return (
+      url: url,
+      duration: _toInt(m['duration'], t.durationSec),
+      ext: ext
+    );
   }
 
   /// Fill gaps for search items missing artist/duration (ATV uploads

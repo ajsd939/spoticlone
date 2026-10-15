@@ -4,6 +4,7 @@ import 'package:audio_session/audio_session.dart';
 import 'core/theme.dart';
 import 'core/di.dart';
 import 'models/playlist.dart';
+import 'services/downloads_service.dart';
 import 'audio/audio_handler.dart';
 import 'audio/player_facade.dart';
 import 'ui/home_screen.dart';
@@ -15,9 +16,14 @@ Future<void> main() async {
   try {
     await setupLocator();
   } catch (_) {
-    // Storage unreadable: start with an empty in-memory library
+    // Storage unreadable: start with empty in-memory stores
     // rather than a black screen.
-    getIt.registerSingleton<PlaylistService>(PlaylistService());
+    if (!getIt.isRegistered<PlaylistService>()) {
+      getIt.registerSingleton<PlaylistService>(PlaylistService());
+    }
+    if (!getIt.isRegistered<DownloadsService>()) {
+      getIt.registerSingleton<DownloadsService>(DownloadsService());
+    }
   }
   // Duck other audio, handle noisy (headphones unplugged) correctly.
   final session = await AudioSession.instance;
@@ -26,22 +32,22 @@ Future<void> main() async {
   audioHandler = await AudioService.init(
     builder: () => AppAudioHandler(),
     config: const AudioServiceConfig(
-      androidNotificationChannelId: 'com.spoticlone.audio',
-      androidNotificationChannelName: 'Spoticlone playback',
+      androidNotificationChannelId: 'com.nocrift.audio',
+      androidNotificationChannelName: 'Nocrift playback',
       androidNotificationOngoing: true,
       androidStopForegroundOnPause: true,
     ),
   );
-  runApp(const SpoticloneApp());
+  runApp(const NocriftApp());
 }
 
-class SpoticloneApp extends StatelessWidget {
-  const SpoticloneApp({super.key});
+class NocriftApp extends StatelessWidget {
+  const NocriftApp({super.key});
 
   @override
   Widget build(BuildContext context) {
     return MaterialApp(
-      title: 'Spoticlone',
+      title: 'Nocrift',
       theme: spotifyTheme,
       home: HomeScreen(handler: AudioServiceFacade(audioHandler)),
     );

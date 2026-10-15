@@ -25,7 +25,7 @@ class NotificationPermissionService {
         builder: (c) => AlertDialog(
           title: const Text('Enable notifications'),
           content: const Text(
-              'Spoticlone keeps playing in the background via a '
+              'Nocrift keeps playing in the background via a '
               'persistent player notification. Please allow '
               'notifications, otherwise playback may stop.'),
           actions: [

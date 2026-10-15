@@ -127,6 +127,7 @@ def get_stream(query, video_id=""):
                 "videoId": _coerce_str(e.get("id")),
                 "title": _coerce_str(e.get("title")),
                 "duration": _coerce_int(e.get("duration")),
+                "ext": _coerce_str(e.get("ext"), "m4a"),
             })
         except Exception as e:
             last_err = str(e)
