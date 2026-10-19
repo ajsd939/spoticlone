@@ -354,4 +354,23 @@ void main() {
     cache.dispose();
     await dir.delete(recursive: true);
   });
+
+  test('ReleaseInfo detects portableZip vs setupExe', () {
+    const rel = ReleaseInfo(
+      tag: 'v1.1.3',
+      name: '1.1.3',
+      notes: '',
+      assets: [
+        ReleaseAsset(
+            name: 'app-release.apk', downloadUrl: 'http://apk'),
+        ReleaseAsset(
+            name: 'Nocrift-Setup-1.1.3.exe', downloadUrl: 'http://exe'),
+        ReleaseAsset(
+            name: 'Nocrift-Portable-1.1.3.zip', downloadUrl: 'http://zip'),
+      ],
+    );
+    expect(rel.apk?.name, 'app-release.apk');
+    expect(rel.setupExe?.name, 'Nocrift-Setup-1.1.3.exe');
+    expect(rel.portableZip?.name, 'Nocrift-Portable-1.1.3.zip');
+  });
 }

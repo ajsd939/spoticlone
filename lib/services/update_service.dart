@@ -46,9 +46,24 @@ class ReleaseInfo {
         return a;
       }
     }
-    // Fallback: any exe (e.g. portable build).
+    // Fallback: any exe.
     for (final a in assets) {
       if (a.name.toLowerCase().endsWith('.exe')) return a;
+    }
+    return null;
+  }
+
+  /// Windows Portable zip artifact.
+  ReleaseAsset? get portableZip {
+    for (final a in assets) {
+      final n = a.name.toLowerCase();
+      if (n.endsWith('.zip') && n.contains('portable')) {
+        return a;
+      }
+    }
+    // Fallback: any zip artifact.
+    for (final a in assets) {
+      if (a.name.toLowerCase().endsWith('.zip')) return a;
     }
     return null;
   }

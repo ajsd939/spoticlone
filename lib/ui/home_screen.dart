@@ -146,10 +146,13 @@ class _HomeScreenState extends State<HomeScreen> {
       ),
     );
     try {
-      final ext =
-          asset.name.toLowerCase().endsWith('.apk') ? '.apk' : '.exe';
+      final ext = asset.name.toLowerCase().endsWith('.apk')
+          ? '.apk'
+          : asset.name.toLowerCase().endsWith('.zip')
+              ? '.zip'
+              : '.exe';
       final file = await ota.download(asset,
-          filename: 'nocrift-\${rel.tag}$ext',
+          filename: 'nocrift-${rel.tag}$ext',
           onProgress: (v) => progress.value = v);
       if (!mounted) return;
       Navigator.pop(context); // close progress
