@@ -115,20 +115,34 @@ class _AlbumScreenState extends State<AlbumScreen> {
                                     fontSize: 13)),
                             const SizedBox(height: 10),
                             if (a.tracks.isNotEmpty)
-                              GestureDetector(
-                                onTap: () => widget.onPlayQueue(
-                                    a.tracks, 0),
-                                child: Container(
-                                  width: 48,
-                                  height: 48,
-                                  decoration:
-                                      const BoxDecoration(
-                                    color: AppColors.accent,
-                                    shape: BoxShape.circle,
+                              Row(
+                                children: [
+                                  GestureDetector(
+                                    onTap: () => widget.onPlayQueue(
+                                        a.tracks, 0),
+                                    child: Container(
+                                      width: 48,
+                                      height: 48,
+                                      decoration:
+                                          const BoxDecoration(
+                                        color: AppColors.accent,
+                                        shape: BoxShape.circle,
+                                      ),
+                                      child: const Icon(Icons.play_arrow,
+                                          color: Colors.black, size: 30),
+                                    ),
                                   ),
-                                  child: const Icon(Icons.play_arrow,
-                                      color: Colors.black, size: 30),
-                                ),
+                                  const SizedBox(width: 10),
+                                  IconButton(
+                                    tooltip: 'Download album',
+                                    onPressed: () =>
+                                        startDownloadCollection(
+                                            context, a.title, a.tracks),
+                                    icon: const Icon(
+                                        Icons.download_outlined,
+                                        color: Colors.white),
+                                  ),
+                                ],
                               ),
                           ],
                         ),

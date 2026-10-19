@@ -15,9 +15,11 @@ subscription, no ads.
 - **Gapless background playback** — music keeps playing with the screen off,
   plus lock-screen / notification controls (Android) and taskbar flyout
   controls (Windows).
-- **Offline downloads** — long-press any song, hit Download, and it plays
-  from local storage with no network at all.
-- **Synced lyrics** — line-by-line highlighting from the free LRCLIB database.
+- **Offline downloads** — every song you play is saved automatically, and you
+  can also grab a single song (long-press) or a whole playlist/album in one tap.
+  Audio and lyrics play from local storage with no network at all.
+- **Synced lyrics** — line-by-line highlighting from the free LRCLIB database,
+  with a small translation under each line in your device language.
 - **Artist pages** — photo header, top tracks, complete albums and singles
   discographies (not just the top 10).
 - **Album pages** — cover header, full numbered track list, one-tap play.

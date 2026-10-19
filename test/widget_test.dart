@@ -261,4 +261,34 @@ void main() {
     expect(await f.exists(), isFalse);
     await dir.delete(recursive: true);
   });
+
+  test('downloadMany counts already-offline songs without network',
+      () async {
+    SharedPreferences.setMockInitialValues({});
+    final dir = await Directory.systemTemp.createTemp('nocrift-dl-batch');
+    final svc = DownloadsService(directory: dir);
+    await svc.load();
+    const a = Track(videoId: 'a', title: 'A', artist: 'X');
+    const b = Track(videoId: 'b', title: 'B', artist: 'X');
+    for (final t in [a, b]) {
+      final f = File('${dir.path}/${t.videoId}.m4a');
+      await f.writeAsBytes([1]);
+      await svc.registerDownload(t, f.path);
+    }
+    // Newest download is listed first.
+    expect(svc.tracks.first.videoId, 'b');
+    var last = (0, 0);
+    final r = await svc.downloadMany(
+      [a, b, const Track(videoId: 'c', title: 'C', artist: 'X')],
+      onProgress: (done, total) => last = (done, total),
+    );
+    // 'c' needs the network, so it fails in a unit test; a and b count.
+    expect(r.ok, 2);
+    expect(r.failed, 1);
+    expect(last, (3, 3));
+    expect(svc.isDownloading('a'), isFalse);
+    svc.autoSave(a); // already offline: no-op
+    expect(svc.isDownloading('a'), isFalse);
+    await dir.delete(recursive: true);
+  });
 }

@@ -1,6 +1,7 @@
 import 'package:audio_service/audio_service.dart';
 import 'package:just_audio/just_audio.dart';
 import 'package:rxdart/rxdart.dart';
+import 'dart:async';
 import '../models/track.dart';
 import '../services/stream_service.dart';
 import '../core/di.dart';
@@ -134,6 +135,9 @@ class AppAudioHandler extends BaseAudioHandler with QueueHandler, SeekHandler {
     );
     if (gen != _playGen) return;
     await _player.play();
+    // Auto-save every song you play so it also shows up under
+    // Downloads (silent, serialized, never blocks playback).
+    _autoSave(t);
     // Resolve the next track while this one plays (gapless-ish).
     _prefetchNext(gen);
   }
@@ -162,6 +166,14 @@ class AppAudioHandler extends BaseAudioHandler with QueueHandler, SeekHandler {
     } catch (_) {
       return null;
     }
+  }
+
+  /// Background offline copy of the song that just started playing.
+  void _autoSave(Track t) {
+    if (_localFile(t) != null) return;
+    try {
+      getIt<DownloadsService>().autoSave(t);
+    } catch (_) {}
   }
 
   void _prefetchNext(int gen) {

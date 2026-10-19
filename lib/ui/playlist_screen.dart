@@ -42,6 +42,13 @@ class PlaylistScreen extends StatelessWidget {
             backgroundColor: AppColors.background,
             title: Text(p.name),
             actions: [
+              if (p.tracks.isNotEmpty)
+                IconButton(
+                  tooltip: 'Download playlist',
+                  icon: const Icon(Icons.download_outlined),
+                  onPressed: () => startDownloadCollection(
+                      context, p.name, p.tracks),
+                ),
               if (p.id != PlaylistService.likedId)
                 IconButton(
                   icon: const Icon(Icons.delete_outline),
@@ -378,6 +385,66 @@ Future<void> startDownload(BuildContext context, Track track) async {
     if (!context.mounted) return;
     Navigator.pop(context);
     ScaffoldMessenger.of(context).showSnackBar(
+        SnackBar(content: Text('Download failed: $e')));
+  } finally {
+    progress.dispose();
+  }
+}
+
+// Download every song in a playlist/album with a progress dialog.
+Future<void> startDownloadCollection(
+    BuildContext context, String label, List<Track> tracks) async {
+  final svc = getIt<DownloadsService>();
+  final messenger = ScaffoldMessenger.of(context);
+  final todo =
+      tracks.where((t) => !svc.isDownloaded(t.videoId)).toList();
+  if (todo.isEmpty) {
+    messenger.showSnackBar(
+        SnackBar(content: Text('$label is already offline')));
+    return;
+  }
+  final progress = ValueNotifier<(int, int)>((0, todo.length));
+  showDialog(
+    context: context,
+    barrierDismissible: false,
+    builder: (c) => AlertDialog(
+      backgroundColor: AppColors.card,
+      title: Text('Downloading $label',
+          style: const TextStyle(color: Colors.white, fontSize: 18)),
+      content: ValueListenableBuilder<(int, int)>(
+        valueListenable: progress,
+        builder: (c, v, _) {
+          final done = v.$1, total = v.$2;
+          return Column(
+            mainAxisSize: MainAxisSize.min,
+            crossAxisAlignment: CrossAxisAlignment.start,
+            children: [
+              LinearProgressIndicator(
+                  value: total == 0 ? 0 : done / total),
+              const SizedBox(height: 10),
+              Text('$done of $total songs',
+                  style: const TextStyle(color: Colors.white70)),
+            ],
+          );
+        },
+      ),
+    ),
+  );
+  try {
+    final r = await svc.downloadMany(todo,
+        onProgress: (done, total) => progress.value = (done, total));
+    if (!context.mounted) return;
+    Navigator.pop(context);
+    final failed = r.failed;
+    messenger.showSnackBar(SnackBar(
+      content: Text(failed == 0
+          ? '$label saved offline (${r.ok} songs)'
+          : '$label saved (${r.ok} of ${r.ok + failed} songs, $failed failed)'),
+    ));
+  } catch (e) {
+    if (!context.mounted) return;
+    Navigator.pop(context);
+    messenger.showSnackBar(
         SnackBar(content: Text('Download failed: $e')));
   } finally {
     progress.dispose();

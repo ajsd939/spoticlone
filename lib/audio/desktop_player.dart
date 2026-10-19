@@ -152,6 +152,9 @@ class DesktopPlayer implements PlayerFacade {
         artUri: Uri.tryParse(t.artworkUrl),
       ));
       await _player.play();
+      // Auto-save every song you play so it also shows up under
+      // Downloads (silent, serialized, never blocks playback).
+      _autoSave(t);
       _prefetchNext(gen);
     } catch (_) {
       // Drop the stuck buffering state so the spinner can't hang.
@@ -186,6 +189,14 @@ class DesktopPlayer implements PlayerFacade {
     } catch (_) {
       return null;
     }
+  }
+
+  /// Background offline copy of the song that just started playing.
+  void _autoSave(Track t) {
+    if (_localFile(t) != null) return;
+    try {
+      getIt<DownloadsService>().autoSave(t);
+    } catch (_) {}
   }
 
   void _prefetchNext(int gen) {

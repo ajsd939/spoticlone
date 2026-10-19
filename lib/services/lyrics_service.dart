@@ -1,11 +1,20 @@
 import 'dart:convert';
 import 'package:http/http.dart' as http;
+import 'package:shared_preferences/shared_preferences.dart';
 import '../models/track.dart';
 
 // Free LRCLIB API, no key. Pass artist + track + duration for
 // exact-match synced lyrics. See https://lrclib.net/docs
+//
+// Results are cached per videoId, so offline downloads keep their
+// lyrics (and repeat views never hit the network).
 class LyricsService {
+  static const _prefsPrefix = 'spoticlone.lyrics.v1.';
+
   Future<List<LyricLine>> fetchSynced(Track t) async {
+    final cached = await _readCache(t.videoId);
+    if (cached != null) return cached;
+
     // Fallback chain: exact credit first, then progressively looser
     // queries (LRCLIB misses on "A, B" multi-artists, "(feat. X)"
     // titles and strict durations).
@@ -15,9 +24,57 @@ class LyricsService {
       if (!seen.add(key)) continue;
       final lines =
           await _fetchOnce(q.$1, q.$2, q.$3 ? t.durationSec : 0);
-      if (lines.isNotEmpty) return lines;
+      if (lines.isNotEmpty) {
+        await _writeCache(t.videoId, lines);
+        return lines;
+      }
     }
     return [];
+  }
+
+  /// Prefetch hook used when a song is saved for offline play. Keeps
+  /// supported tracks' lyrics available with no connection later.
+  Future<void> cacheFor(Track t) async {
+    try {
+      if (await _readCache(t.videoId) != null) return;
+      await fetchSynced(t);
+    } catch (_) {}
+  }
+
+  Future<List<LyricLine>?> _readCache(String videoId) async {
+    if (videoId.isEmpty) return null;
+    try {
+      final prefs = await SharedPreferences.getInstance();
+      final raw = prefs.getString('$_prefsPrefix$videoId');
+      if (raw == null || raw.isEmpty) return null;
+      final decoded = jsonDecode(raw);
+      if (decoded is! List) return null;
+      final out = <LyricLine>[];
+      for (final e in decoded.whereType<Map>()) {
+        final ms = e['ms'];
+        final text = (e['text'] ?? '').toString();
+        if (ms is! num || text.isEmpty) continue;
+        out.add(LyricLine(
+            Duration(milliseconds: ms.toInt()), text));
+      }
+      return out;
+    } catch (_) {
+      return null;
+    }
+  }
+
+  Future<void> _writeCache(String videoId, List<LyricLine> lines) async {
+    if (videoId.isEmpty || lines.isEmpty) return;
+    try {
+      final prefs = await SharedPreferences.getInstance();
+      await prefs.setString(
+        '$_prefsPrefix$videoId',
+        jsonEncode([
+          for (final l in lines)
+            {'ms': l.time.inMilliseconds, 'text': l.text}
+        ]),
+      );
+    } catch (_) {}
   }
 
   /// (artist, title, withDuration) attempts, most exact first.
