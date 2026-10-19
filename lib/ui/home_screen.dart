@@ -205,6 +205,19 @@ class _HomeScreenState extends State<HomeScreen> {
     }
   }
 
+  /// Library subtitle: permanent saves plus the disposable cache.
+  String _downloadSubtitle() {
+    final svc = getIt<DownloadsService>();
+    final saved = svc.count;
+    final cached = svc.cache?.count ?? 0;
+    if (saved == 0 && cached == 0) return 'Songs play offline automatically';
+    final parts = <String>[
+      if (saved > 0) '$saved saved',
+      if (cached > 0) '$cached cached',
+    ];
+    return parts.join(' • ');
+  }
+
   /// Play [list] from [index] through the end (album order, or
   /// shuffled when shuffle is on). Replaces _play everywhere.
   Future<void> _playQueue(List<Track> list, int index) async {
@@ -407,6 +420,8 @@ class _HomeScreenState extends State<HomeScreen> {
                   listenable: Listenable.merge([
                     getIt<PlaylistService>(),
                     getIt<DownloadsService>(),
+                    if (getIt<DownloadsService>().cache != null)
+                      getIt<DownloadsService>().cache!,
                   ]),
                   builder: (c, _) {
                     final svc = getIt<PlaylistService>();
@@ -461,7 +476,7 @@ class _HomeScreenState extends State<HomeScreen> {
                                   color: Colors.white,
                                   fontWeight: FontWeight.w500)),
                           subtitle: Text(
-                              '${getIt<DownloadsService>().count} songs offline',
+                              _downloadSubtitle(),
                               style: const TextStyle(
                                   color: AppColors.grey,
                                   fontSize: 13)),

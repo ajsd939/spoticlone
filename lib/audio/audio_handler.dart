@@ -100,6 +100,8 @@ class AppAudioHandler extends BaseAudioHandler with QueueHandler, SeekHandler {
   Future<void> _playCurrent(int gen) async {
     var t = _queue.current;
     if (t == null) return;
+    // A returning "previous" cancels this song's pending cache delete.
+    _markPlaying(t);
     // NOTE: mediaItem is added only AFTER resolve succeeds. Adding it
     // eagerly leaves the new track's title/art stuck in the mini-player,
     // notification and lock-screen when resolve fails, while the full
@@ -138,6 +140,8 @@ class AppAudioHandler extends BaseAudioHandler with QueueHandler, SeekHandler {
     // Auto-save every song you play so it also shows up under
     // Downloads (silent, serialized, never blocks playback).
     _autoSave(t);
+    // New song is audible: start the grace timer for the previous one.
+    _markStarted(t);
     // Resolve the next track while this one plays (gapless-ish).
     _prefetchNext(gen);
   }
@@ -162,7 +166,7 @@ class AppAudioHandler extends BaseAudioHandler with QueueHandler, SeekHandler {
   /// Downloaded file path or null (service missing/corrupt safe).
   String? _localFile(Track t) {
     try {
-      return getIt<DownloadsService>().localPath(t.videoId);
+      return getIt<DownloadsService>().playablePath(t.videoId);
     } catch (_) {
       return null;
     }
@@ -173,6 +177,20 @@ class AppAudioHandler extends BaseAudioHandler with QueueHandler, SeekHandler {
     if (_localFile(t) != null) return;
     try {
       getIt<DownloadsService>().autoSave(t);
+    } catch (_) {}
+  }
+
+  /// Playback is starting: rescue this song from a grace timer.
+  void _markPlaying(Track t) {
+    try {
+      getIt<DownloadsService>().onPlaybackStart(t.videoId);
+    } catch (_) {}
+  }
+
+  /// Playback actually began: start the 15s cleanup for the last song.
+  void _markStarted(Track t) {
+    try {
+      getIt<DownloadsService>().onPlaybackStarted(t.videoId);
     } catch (_) {}
   }
 

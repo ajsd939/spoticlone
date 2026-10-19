@@ -5,6 +5,7 @@ import 'package:spoticlone/services/lyrics_service.dart';
 import 'package:spoticlone/models/track.dart';
 import 'package:spoticlone/models/artist.dart';
 import 'package:spoticlone/models/playlist.dart';
+import 'package:spoticlone/services/cache_manager.dart';
 import 'package:spoticlone/services/update_service.dart';
 import 'package:spoticlone/services/downloads_service.dart';
 import 'package:spoticlone/audio/playback_queue.dart';
@@ -274,6 +275,7 @@ void main() {
       final f = File('${dir.path}/${t.videoId}.m4a');
       await f.writeAsBytes([1]);
       await svc.registerDownload(t, f.path);
+      await Future.delayed(const Duration(milliseconds: 5));
     }
     // Newest download is listed first.
     expect(svc.tracks.first.videoId, 'b');
@@ -289,6 +291,67 @@ void main() {
     expect(svc.isDownloading('a'), isFalse);
     svc.autoSave(a); // already offline: no-op
     expect(svc.isDownloading('a'), isFalse);
+    await dir.delete(recursive: true);
+  });
+
+  test('CacheManager wipes stale temp files on startup', () async {
+    final dir = await Directory.systemTemp.createTemp('nocrift-cache-init');
+    await File('${dir.path}/stale.m4a').writeAsBytes([1, 2, 3]);
+    final cache = CacheManager(directory: dir);
+    await cache.init();
+    expect(cache.count, 0);
+    expect(await File('${dir.path}/stale.m4a').exists(), isFalse);
+    cache.dispose();
+    await dir.delete(recursive: true);
+  });
+
+  test('CacheManager grace-deletes skipped songs and spares current',
+      () async {
+    final dir = await Directory.systemTemp.createTemp('nocrift-cache-timer');
+    final cache = CacheManager(directory: dir);
+    await cache.init();
+    const a = Track(videoId: 'a', title: 'A', artist: 'X');
+    const b = Track(videoId: 'b', title: 'B', artist: 'X');
+    final fa = await cache.allocate(a, 'm4a');
+    final fb = await cache.allocate(b, 'm4a');
+    await fa.writeAsBytes([1]);
+    await fb.writeAsBytes([1]);
+    await cache.register(a, fa);
+    await cache.register(b, fb);
+    expect(cache.count, 2);
+
+    // Current song is never deleted even if a timer is misconfigured.
+    cache.beginPlayback('a');
+    await cache.deleteNow('a');
+    expect(await fa.exists(), isTrue);
+
+    // Skipped song goes after its grace period.
+    cache.scheduleDeleteOthers('a');
+    expect(cache.pathFor('b'), fb.path);
+    await Future.delayed(const Duration(milliseconds: 60));
+    // (default grace is 15s; force a short one for the test)
+    cache.scheduleDelete('b', grace: const Duration(milliseconds: 30));
+    await Future.delayed(const Duration(milliseconds: 120));
+    expect(await fb.exists(), isFalse);
+    expect(cache.has('b'), isFalse);
+
+    // Returning within the grace window cancels the delete.
+    final fc = await cache.allocate(
+        const Track(videoId: 'c', title: 'C', artist: 'X'), 'm4a');
+    await fc.writeAsBytes([1]);
+    const c = Track(videoId: 'c', title: 'C', artist: 'X');
+    await cache.register(c, fc);
+    cache.scheduleDeleteOthers('a');
+    cache.scheduleDelete('c', grace: const Duration(milliseconds: 40));
+    cache.beginPlayback('c');
+    await Future.delayed(const Duration(milliseconds: 120));
+    expect(await fc.exists(), isTrue);
+    expect(cache.pathFor('c'), fc.path);
+
+    await cache.clearAll();
+    expect(await fa.exists(), isFalse);
+    expect(cache.count, 0);
+    cache.dispose();
     await dir.delete(recursive: true);
   });
 }

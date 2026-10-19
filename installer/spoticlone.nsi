@@ -4,7 +4,7 @@
 !include "MUI2.nsh"
 
 !define APP_NAME "Nocrift"
-!define APP_VERSION "1.1.1"
+!define APP_VERSION "1.1.2"
 !define PUBLISHER "Nocrift"
 !define EXE "spoticlone.exe"
 !define SRC_DIR "..\build\windows\x64\runner\Release"

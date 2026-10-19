@@ -6,6 +6,7 @@ import '../core/di.dart';
 import '../core/theme.dart';
 import '../audio/player_facade.dart';
 import '../services/downloads_service.dart';
+import '../services/cache_manager.dart';
 import 'mini_player.dart';
 
 // Playlist detail: header + removable track rows. Rebuilds live via
@@ -236,10 +237,16 @@ Future<void> showAddToPlaylist(BuildContext context, Track track) {
             ),
             // Offline download row (state follows the service).
             ListenableBuilder(
-              listenable: getIt<DownloadsService>(),
+              listenable: Listenable.merge([
+                getIt<DownloadsService>(),
+                if (getIt<DownloadsService>().cache != null)
+                  getIt<DownloadsService>().cache!,
+              ]),
               builder: (c, _) {
                 final dl = getIt<DownloadsService>();
                 final done = dl.isDownloaded(track.videoId);
+                final cached =
+                    !done && (dl.cache?.has(track.videoId) ?? false);
                 return ListTile(
                   leading: Container(
                     width: 44,
@@ -253,18 +260,27 @@ Future<void> showAddToPlaylist(BuildContext context, Track track) {
                     child: Icon(
                         done
                             ? Icons.download_done
-                            : Icons.download_outlined,
+                            : cached
+                                ? Icons.offline_pin_outlined
+                                : Icons.download_outlined,
                         color: done
                             ? AppColors.accent
                             : Colors.white),
                   ),
-                  title: Text(done ? 'Downloaded' : 'Download',
+                  title: Text(
+                      done
+                          ? 'Downloaded'
+                          : cached
+                              ? 'Keep offline'
+                              : 'Download',
                       style:
                           const TextStyle(color: Colors.white)),
                   subtitle: Text(
                       done
-                          ? 'Playable offline • tap to delete'
-                          : 'Save for offline listening',
+                          ? 'Permanent • exempt from cleanup'
+                          : cached
+                              ? 'Cached — tap to keep permanently'
+                              : 'Save permanently for offline listening',
                       style: const TextStyle(
                           color: AppColors.grey, fontSize: 12)),
                   onTap: () async {
@@ -358,7 +374,7 @@ Future<void> startDownload(BuildContext context, Track track) async {
     barrierDismissible: false,
     builder: (c) => AlertDialog(
       backgroundColor: AppColors.card,
-      title: const Text('Downloading',
+      title: const Text('Saving download',
           style: TextStyle(color: Colors.white)),
       content: ValueListenableBuilder<double>(
         valueListenable: progress,
@@ -380,7 +396,7 @@ Future<void> startDownload(BuildContext context, Track track) async {
     if (!context.mounted) return;
     Navigator.pop(context);
     ScaffoldMessenger.of(context).showSnackBar(
-        const SnackBar(content: Text('Saved for offline listening')));
+        const SnackBar(content: Text('Saved permanently — never auto-deleted')));
   } catch (e) {
     if (!context.mounted) return;
     Navigator.pop(context);
@@ -483,7 +499,7 @@ Future<String?> showNewPlaylistDialog(BuildContext context) {  final ctrl = Text
   );
 }
 
-// Offline library: downloaded tracks with delete + tap-to-play.
+// Offline library: permanent downloads plus the disposable cache.
 class DownloadsScreen extends StatelessWidget {
   final PlayerFacade handler;
   final Future<void> Function(List<Track>, int) onPlayQueue;
@@ -493,6 +509,7 @@ class DownloadsScreen extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     final svc = getIt<DownloadsService>();
+    final cache = svc.cache;
     return Scaffold(
       backgroundColor: AppColors.background,
       appBar: AppBar(
@@ -506,10 +523,12 @@ class DownloadsScreen extends StatelessWidget {
             Navigator.popUntil(context, (r) => r.isFirst),
       ),
       body: ListenableBuilder(
-        listenable: svc,
+        listenable:
+            Listenable.merge([svc, if (cache != null) cache]),
         builder: (c, _) {
-          final tracks = svc.tracks;
-          if (tracks.isEmpty) {
+          final saved = svc.tracks;
+          final cached = cache?.tracks ?? const <CachedTrack>[];
+          if (saved.isEmpty && cached.isEmpty) {
             return const Center(
               child: Text(
                   'Nothing downloaded yet.\nLong-press a song, then Download.',
@@ -517,56 +536,92 @@ class DownloadsScreen extends StatelessWidget {
                   style: TextStyle(color: AppColors.grey)),
             );
           }
-          return ListView.builder(
-            itemCount: tracks.length,
-            itemBuilder: (c, i) {
-              final t = tracks[i];
-              return ListTile(
-                leading: ClipRRect(
-                  borderRadius: BorderRadius.circular(4),
-                  child: CachedNetworkImage(
-                    imageUrl: t.artworkUrl,
-                    width: 48,
-                    height: 48,
-                    fit: BoxFit.cover,
-                    errorWidget: (_, __, ___) => Container(
-                        width: 48,
-                        height: 48,
-                        color: AppColors.cardLight,
-                        child: const Icon(Icons.music_note,
-                            color: Colors.white54)),
-                  ),
-                ),
-                title: Text(t.title,
-                    maxLines: 1,
-                    overflow: TextOverflow.ellipsis,
-                    style: const TextStyle(
-                        color: Colors.white,
-                        fontWeight: FontWeight.w500)),
-                subtitle: Text(t.artist,
-                    maxLines: 1,
-                    overflow: TextOverflow.ellipsis,
-                    style: const TextStyle(
-                        color: AppColors.grey, fontSize: 13)),
-                trailing: Row(
-                  mainAxisSize: MainAxisSize.min,
-                  children: [
-                    const Icon(Icons.download_done,
-                        color: AppColors.accent, size: 18),
-                    IconButton(
-                      icon: const Icon(Icons.close,
-                          color: Colors.white54, size: 20),
-                      onPressed: () =>
-                          svc.delete(t.videoId),
-                    ),
-                  ],
-                ),
-                onTap: () => onPlayQueue(tracks, i),
-              );
-            },
+          return ListView(
+            children: [
+              if (saved.isNotEmpty)
+                _sectionHeader('Downloaded', 'Permanent • exempt from cleanup'),
+              ...saved.map((t) => _row(t, permanent: true)),
+              if (cached.isNotEmpty)
+                _sectionHeader('Temporary cache',
+                    'Auto-deletes 15s after you skip'),
+              ...cached.map((e) => _row(e.track, permanent: false)),
+            ],
           );
         },
       ),
+    );
+  }
+
+  Widget _sectionHeader(String title, String subtitle) => Padding(
+        padding: const EdgeInsets.fromLTRB(16, 18, 16, 6),
+        child: Column(
+          crossAxisAlignment: CrossAxisAlignment.start,
+          children: [
+            Text(title,
+                style: const TextStyle(
+                    color: Colors.white,
+                    fontSize: 16,
+                    fontWeight: FontWeight.w700)),
+            const SizedBox(height: 2),
+            Text(subtitle,
+                style:
+                    const TextStyle(color: AppColors.grey, fontSize: 12)),
+          ],
+        ),
+      );
+
+  Widget _row(Track t, {required bool permanent}) {
+    final svc = getIt<DownloadsService>();
+    return ListTile(
+      leading: ClipRRect(
+        borderRadius: BorderRadius.circular(4),
+        child: CachedNetworkImage(
+          imageUrl: t.artworkUrl,
+          width: 48,
+          height: 48,
+          fit: BoxFit.cover,
+          errorWidget: (_, __, ___) => Container(
+              width: 48,
+              height: 48,
+              color: AppColors.cardLight,
+              child: const Icon(Icons.music_note,
+                  color: Colors.white54)),
+        ),
+      ),
+      title: Text(t.title,
+          maxLines: 1,
+          overflow: TextOverflow.ellipsis,
+          style: const TextStyle(
+              color: Colors.white,
+              fontWeight: FontWeight.w500)),
+      subtitle: Text(t.artist,
+          maxLines: 1,
+          overflow: TextOverflow.ellipsis,
+          style: const TextStyle(
+              color: AppColors.grey, fontSize: 13)),
+      trailing: Row(
+        mainAxisSize: MainAxisSize.min,
+        children: [
+          Icon(permanent ? Icons.download_done : Icons.hourglass_bottom,
+              color: AppColors.accent, size: 18),
+          IconButton(
+            icon: const Icon(Icons.close,
+                color: Colors.white54, size: 20),
+            onPressed: () => permanent
+                ? svc.delete(t.videoId)
+                : svc.cache?.deleteNow(t.videoId),
+          ),
+        ],
+      ),
+      onTap: () {
+        if (permanent) {
+          onPlayQueue(svc.tracks, svc.tracks.indexOf(t));
+        } else {
+          final cached =
+              svc.cache?.tracks.map((e) => e.track).toList() ?? [];
+          onPlayQueue(cached, cached.indexOf(t));
+        }
+      },
     );
   }
 }

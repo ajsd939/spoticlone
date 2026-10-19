@@ -118,6 +118,8 @@ class DesktopPlayer implements PlayerFacade {
   Future<void> _playCurrent(int gen) async {
     var t = _queue.current;
     if (t == null) return;
+    // A returning "previous" cancels this song's pending cache delete.
+    _markPlaying(t);
     _setResolving();
     try {
       await _player.stop();
@@ -155,6 +157,8 @@ class DesktopPlayer implements PlayerFacade {
       // Auto-save every song you play so it also shows up under
       // Downloads (silent, serialized, never blocks playback).
       _autoSave(t);
+      // New song is audible: start the grace timer for the previous one.
+      _markStarted(t);
       _prefetchNext(gen);
     } catch (_) {
       // Drop the stuck buffering state so the spinner can't hang.
@@ -185,7 +189,7 @@ class DesktopPlayer implements PlayerFacade {
   /// Downloaded file path or null (service missing/corrupt safe).
   String? _localFile(Track t) {
     try {
-      return getIt<DownloadsService>().localPath(t.videoId);
+      return getIt<DownloadsService>().playablePath(t.videoId);
     } catch (_) {
       return null;
     }
@@ -196,6 +200,20 @@ class DesktopPlayer implements PlayerFacade {
     if (_localFile(t) != null) return;
     try {
       getIt<DownloadsService>().autoSave(t);
+    } catch (_) {}
+  }
+
+  /// Playback is starting: rescue this song from a grace timer.
+  void _markPlaying(Track t) {
+    try {
+      getIt<DownloadsService>().onPlaybackStart(t.videoId);
+    } catch (_) {}
+  }
+
+  /// Playback actually began: start the 15s cleanup for the last song.
+  void _markStarted(Track t) {
+    try {
+      getIt<DownloadsService>().onPlaybackStarted(t.videoId);
     } catch (_) {}
   }
 

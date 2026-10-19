@@ -6,6 +6,7 @@ import 'package:http/http.dart' as http;
 import 'package:path_provider/path_provider.dart';
 import 'package:shared_preferences/shared_preferences.dart';
 import '../models/track.dart';
+import 'cache_manager.dart';
 import 'lyrics_service.dart';
 import 'stream_service.dart';
 import 'yt_bridge.dart';
@@ -43,6 +44,7 @@ class DownloadsService extends ChangeNotifier {
 
   final YtBridge? _bridge;
   final Directory? _overrideDir; // tests
+  final CacheManager? _cache;
   SharedPreferences? _prefs;
   final Map<String, DownloadedTrack> _items = {};
 
@@ -52,9 +54,13 @@ class DownloadsService extends ChangeNotifier {
   // bandwidth with a burst of downloads.
   Future<void> _autoChain = Future.value();
 
-  DownloadsService({YtBridge? bridge, Directory? directory})
+  DownloadsService({YtBridge? bridge, Directory? directory, CacheManager? cache})
       : _bridge = bridge,
-        _overrideDir = directory;
+        _overrideDir = directory,
+        _cache = cache;
+
+  /// Disposable playback cache (never permanent downloads).
+  CacheManager? get cache => _cache;
 
   /// Newest first, so a song you just played is visible at the top.
   List<Track> get tracks {
@@ -82,6 +88,19 @@ class DownloadsService extends ChangeNotifier {
     }
     return e.path;
   }
+
+  /// Permanent download first, then the disposable temp cache.
+  String? playablePath(String videoId) =>
+      localPath(videoId) ?? _cache?.pathFor(videoId);
+
+  /// Playback is about to load [videoId]: rescue it from a grace timer
+  /// (the "previous" button within 15 seconds).
+  void onPlaybackStart(String videoId) => _cache?.beginPlayback(videoId);
+
+  /// [videoId] is now playing: start the 15-second deletion timer for
+  /// every other cached song.
+  void onPlaybackStarted(String videoId) =>
+      _cache?.scheduleDeleteOthers(videoId);
 
   Future<Directory> _dir() async {
     final od = _overrideDir;
@@ -138,19 +157,31 @@ class DownloadsService extends ChangeNotifier {
     await _save();
   }
 
-  /// Silent download kicked off whenever a song starts playing. This is
-  /// what makes streamed songs show up in the offline library. Queued
-  /// serially, best-effort: failures are ignored and retried next play.
+  /// Silent background copy of the song that just started playing.
+  /// Stored in the disposable temp cache (never in Downloads): it
+  /// survives until the user skips away, the app closes, or an explicit
+  /// download promotes it to permanent storage. Queued serially,
+  /// best-effort: failures are ignored and retried on next play.
   void autoSave(Track track) {
-    if (track.videoId.isEmpty) return;
+    final cache = _cache;
+    if (cache == null || track.videoId.isEmpty) return;
     if (isDownloaded(track.videoId) || _busy.contains(track.videoId)) return;
+    if (cache.pathFor(track.videoId) != null) return;
     _busy.add(track.videoId);
     notifyListeners();
     _autoChain = _autoChain.then((_) async {
       try {
-        if (!isDownloaded(track.videoId)) await download(track, quiet: true);
+        if (isDownloaded(track.videoId) ||
+            cache.pathFor(track.videoId) != null) {
+          return;
+        }
+        final dir = await cache.ensureDir();
+        final file = await _downloadNow(track,
+            targetDir: dir);
+        await cache.register(track, file);
+        unawaited(LyricsService().cacheFor(track));
       } catch (_) {
-        // offline/stream hiccup: leave it out of the library
+        // offline/stream hiccup: nothing to clean up
       } finally {
         _busy.remove(track.videoId);
         notifyListeners();
@@ -158,6 +189,8 @@ class DownloadsService extends ChangeNotifier {
     });
   }
 
+  /// Explicit user download: permanent, persisted, and exempt from all
+  /// cache cleanup. Removes any disposable copy of the same song.
   Future<File> download(Track track,
       {void Function(double progress)? onProgress,
       bool quiet = false}) async {
@@ -170,7 +203,14 @@ class DownloadsService extends ChangeNotifier {
       notifyListeners();
     }
     try {
-      return await _downloadNow(track, onProgress: onProgress);
+      final file = await _downloadNow(track,
+          onProgress: onProgress, targetDir: await _dir());
+      await registerDownload(track, file.path);
+      // Pull lyrics with the audio so the Lyrics tab works offline too.
+      unawaited(LyricsService().cacheFor(track));
+      // A permanent copy supersedes the temp-cache one.
+      await _cache?.removeTemp(track.videoId);
+      return file;
     } finally {
       if (!quiet) {
         _busy.remove(track.videoId);
@@ -180,11 +220,11 @@ class DownloadsService extends ChangeNotifier {
   }
 
   Future<File> _downloadNow(Track track,
-      {void Function(double progress)? onProgress}) async {
-    final dir = await _dir();
+      {void Function(double progress)? onProgress,
+      required Directory targetDir}) async {
     final s = await StreamService(bridge: _bridge).resolve(track);
     final file = File(
-        '${dir.path}${Platform.pathSeparator}${track.videoId}.${s.ext}');
+        '${targetDir.path}${Platform.pathSeparator}${track.videoId}.${s.ext}');
     final req = http.Request('GET', Uri.parse(s.url));
     final client = http.Client();
     try {
@@ -213,9 +253,6 @@ class DownloadsService extends ChangeNotifier {
     } finally {
       client.close();
     }
-    await registerDownload(track, file.path);
-    // Pull lyrics with the audio so the Lyrics tab works offline too.
-    unawaited(LyricsService().cacheFor(track));
     return file;
   }
 
